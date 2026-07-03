@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Village Applications Summary Dashboard</title>
+<!-- SheetJS (xlsx) via CDN — parses Excel/CSV entirely client-side, no server needed -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    /* ISD (Rural) — tan / olive */
+    --g-isd:#B3A369; --s-isd:#E7E0C2; --t-isd:#CFC38C; --txt-isd:#3f3a12;
+    /* ISD (Natham) — pink */
+    --g-nat:#DB7FA6; --s-nat:#F6DCE7; --t-nat:#EAAEC8; --txt-nat:#5a2740;
+    /* F Line (Rural) — green */
+    --g-fr:#7FB85C;  --s-fr:#D8ECC8;  --t-fr:#A9D08E;  --txt-fr:#244a12;
+    /* F Line (Natham) — purple */
+    --g-fn:#8E7CC3;  --s-fn:#DED8F0;  --t-fn:#B4A7D6;  --txt-fn:#2c2340;
+    /* Grand Total — orange */
+    --g-grand:#E58F3A; --t-grand:#F4B183; --txt-grand:#5a3410;
+    --ink:#1f2430; --muted:#6b7280; --line:#c9ccd3; --bg:#f4f5f7;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:24px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--bg);
+  }
+  h1{font-size:20px; margin:0 0 4px}
+  .sub{color:var(--muted); font-size:13px; margin:0 0 20px}
+  .card{background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:18px;
+        box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .card h2{font-size:14px; margin:0 0 14px; text-transform:uppercase; letter-spacing:.04em; color:#374151}
+
+  /* Upload grid */
+  .uploads{display:grid; grid-template-columns:1fr; gap:10px}
+  @media(min-width:760px){.uploads{grid-template-columns:1fr 1fr}}
+  .drop{display:flex; align-items:center; gap:12px; border:1px dashed #c3c7cf; border-radius:8px;
+        padding:10px 12px; background:#fafbfc}
+  .drop .lab{flex:0 0 auto; min-width:150px}
+  .drop .lab b{display:block; font-size:13px}
+  .drop .lab small{color:var(--muted); font-size:11px}
+  .drop input[type=file]{flex:1 1 auto; font-size:12px; min-width:0}
+  .badge{flex:0 0 auto; font-size:11px; padding:3px 9px; border-radius:999px; white-space:nowrap;
+         background:#eef0f3; color:#6b7280; border:1px solid #e0e3e8}
+  .badge.ok{background:#e7f6ec; color:#1a7f43; border-color:#bfe6cd}
+  .badge.err{background:#fdecec; color:#b42318; border-color:#f5c6c2}
+
+  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center}
+  button{font:inherit; font-size:13px; border-radius:8px; padding:9px 16px; cursor:pointer; border:1px solid transparent}
+  button.primary{background:#2563eb; color:#fff}
+  button.primary:hover{background:#1d4ed8}
+  button.ghost{background:#fff; color:#374151; border-color:#d1d5db}
+  button.ghost:hover{background:#f3f4f6}
+  button:disabled{opacity:.5; cursor:not-allowed}
+  .hint{color:var(--muted); font-size:12px; margin-left:auto}
+
+  /* Warnings */
+  .warn{border-left:4px solid #f0a500; background:#fff8e6; padding:12px 14px; border-radius:6px;
+        font-size:13px; margin-bottom:14px}
+  .warn h3{margin:0 0 6px; font-size:13px; color:#8a6100}
+  .warn ul{margin:6px 0 0; padding-left:18px; columns:2; column-gap:26px}
+  .warn li{font-size:12px; margin:2px 0}
+  .warn.info{border-left-color:#2563eb; background:#eef4ff}
+  .warn.info h3{color:#1d4ed8}
+
+  /* Legend */
+  .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:#374151; margin-top:4px}
+  .legend span{display:inline-flex; align-items:center; gap:6px}
+  .legend i{width:14px; height:14px; border-radius:3px; display:inline-block; border:1px solid rgba(0,0,0,.15)}
+
+  /* Table */
+  .tablewrap{overflow:auto; max-height:74vh; border:1px solid var(--line); border-radius:8px}
+  table{border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; font-size:12.5px}
+  th,td{border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:6px 10px; text-align:center; white-space:nowrap}
+  th{font-weight:700}
+  thead th{position:sticky; top:0; z-index:3}
+  thead tr:nth-child(2) th{top:31px}
+  td.user,th.corner{text-align:left; font-weight:600}
+  /* sticky first column */
+  th.corner,td.user{position:sticky; left:0; z-index:2; background:#fff; border-right:2px solid #9aa0aa}
+  th.corner{z-index:5; background:#f0f2f5}
+  td.num{font-variant-numeric:tabular-nums}
+  td.zero{color:#c2c6cd}
+
+  /* color classes */
+  .g-isd{background:var(--g-isd); color:var(--txt-isd)}
+  .s-isd{background:var(--s-isd); color:var(--txt-isd)}
+  .t-isd{background:var(--t-isd); color:var(--txt-isd); font-weight:700}
+  .g-nat{background:var(--g-nat); color:var(--txt-nat)}
+  .s-nat{background:var(--s-nat); color:var(--txt-nat)}
+  .t-nat{background:var(--t-nat); color:var(--txt-nat); font-weight:700}
+  .g-fr{background:var(--g-fr); color:var(--txt-fr)}
+  .s-fr{background:var(--s-fr); color:var(--txt-fr)}
+  .t-fr{background:var(--t-fr); color:var(--txt-fr); font-weight:700}
+  .g-fn{background:var(--g-fn); color:var(--txt-fn)}
+  .s-fn{background:var(--s-fn); color:var(--txt-fn)}
+  .t-fn{background:var(--t-fn); color:var(--txt-fn); font-weight:700}
+  .g-grand{background:var(--g-grand); color:var(--txt-grand)}
+  .t-grand{background:var(--t-grand); color:var(--txt-grand); font-weight:700}
+
+  tbody tr:nth-child(even) td.num{background:#fbfbfc}
+  tbody tr.totalRow td{font-weight:700; background:#eceef1}
+  tbody tr.totalRow td.user{background:#e2e5ea}
+  tbody tr.totalRow td.t-isd{background:var(--t-isd)}
+  tbody tr.totalRow td.t-nat{background:var(--t-nat)}
+  tbody tr.totalRow td.t-fr{background:var(--t-fr)}
+  tbody tr.totalRow td.t-fn{background:var(--t-fn)}
+  tbody tr.totalRow td.t-grand{background:var(--t-grand)}
+
+  .empty{padding:48px 20px; text-align:center; color:var(--muted); font-size:14px}
+  .meta{font-size:12px; color:var(--muted); margin:0 0 12px}
+  code.k{background:#eef0f3; padding:1px 5px; border-radius:4px; font-size:11px}
+</style>
+</head>
+<body>
+  <h1>Village Applications — Summary Report</h1>
+  <p class="sub">Upload the five source files below. Everything is parsed and calculated in your browser — nothing is uploaded to any server.</p>
+
+  <div class="card">
+    <h2>1 · Upload source files</h2>
+    <div class="uploads">
+      <label class="drop">
+        <span class="lab"><b>Village Details</b><small>Sl.No · Village · User name</small></span>
+        <input type="file" data-cat="village" accept=".xlsx,.xls,.csv">
+        <span class="badge" data-badge="village">not loaded</span>
+      </label>
+      <label class="drop">
+        <span class="lab"><b>F Line — Rural</b><small>District…Village Name…App Date…Status</small></span>
+        <input type="file" data-cat="flineRural" accept=".xlsx,.xls,.csv">
+        <span class="badge" data-badge="flineRural">not loaded</span>
+      </label>
+      <label class="drop">
+        <span class="lab"><b>F Line — Natham</b><small>same columns as F Line Rural</small></span>
+        <input type="file" data-cat="flineNatham" accept=".xlsx,.xls,.csv">
+        <span class="badge" data-badge="flineNatham">not loaded</span>
+      </label>
+      <label class="drop">
+        <span class="lab"><b>ISD — Rural</b><small>S.No…Village Name…App Date…Status</small></span>
+        <input type="file" data-cat="isdRural" accept=".xlsx,.xls,.csv">
+        <span class="badge" data-badge="isdRural">not loaded</span>
+      </label>
+      <label class="drop">
+        <span class="lab"><b>ISD — Natham</b><small>same columns as ISD Rural</small></span>
+        <input type="file" data-cat="isdNatham" accept=".xlsx,.xls,.csv">
+        <span class="badge" data-badge="isdNatham">not loaded</span>
+      </label>
+    </div>
+    <div class="actions">
+      <button class="primary" id="refreshBtn">Refresh / recalculate</button>
+      <button class="ghost" id="exportBtn" disabled>Export table to Excel</button>
+      <button class="ghost" id="clearBtn">Clear all</button>
+      <span class="hint" id="autohint">The summary renders automatically once all five files are loaded.</span>
+    </div>
+  </div>
+
+  <div id="warnings"></div>
+
+  <div class="card">
+    <h2>2 · Summary</h2>
+    <p class="meta" id="meta"></p>
+    <div class="legend">
+      <span><i style="background:var(--g-isd)"></i>ISD (Rural)</span>
+      <span><i style="background:var(--g-nat)"></i>ISD (Natham)</span>
+      <span><i style="background:var(--g-fr)"></i>F Line (Rural)</span>
+      <span><i style="background:var(--g-fn)"></i>F Line (Natham)</span>
+      <span><i style="background:var(--g-grand)"></i>Grand Total</span>
+    </div>
+    <div class="tablewrap" id="tablewrap" style="margin-top:12px">
+      <div class="empty" id="empty">No summary yet — upload your files to begin.</div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+/* ============================================================
+   Category definitions — order here == column-group order in table.
+   ============================================================ */
+const CATS = [
+  {key:'isdRural',    label:'ISD (Rural)',     g:'g-isd', s:'s-isd', t:'t-isd'},
+  {key:'isdNatham',   label:'ISD (Natham)',    g:'g-nat', s:'s-nat', t:'t-nat'},
+  {key:'flineRural',  label:'F Line (Rural)',  g:'g-fr',  s:'s-fr',  t:'t-fr'},
+  {key:'flineNatham', label:'F Line (Natham)', g:'g-fn',  s:'s-fn',  t:'t-fn'},
+];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/* In-memory store of parsed files: cat -> {header:[], objs:[{}], name} */
+const store = {village:null, isdRural:null, isdNatham:null, flineRural:null, flineNatham:null};
+
+/* ---------- small helpers ---------- */
+const norm = s => String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
+const esc  = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function fixYear(y){ y=+y; return y<100 ? (y<70?2000+y:1900+y) : y; }
+
+/* Parse many possible date representations into a Date */
+function toDate(val){
+  if(val==null || val==='') return null;
+  if(val instanceof Date) return isNaN(val)?null:val;
+  if(typeof val === 'number'){
+    // Excel serial date -> use SheetJS's SSF parser (handles the 1900 leap-year quirk)
+    try{
+      const dc = XLSX.SSF.parse_date_code(val);
+      if(dc && dc.y) return new Date(dc.y, dc.m-1, dc.d);
+    }catch(e){}
+    return null;
+  }
+  let s = String(val).trim();
+  if(!s) return null;
+  s = s.split(/[ T]/)[0]; // drop any time component
+  const mi = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  let m;
+  // 01-Jun-2026 / 1/Jun/26
+  if((m = s.match(/^(\d{1,2})[-\/\s]([A-Za-z]{3,})[-\/\s](\d{2,4})$/))){
+    const mon = mi[m[2].slice(0,3).toLowerCase()];
+    if(mon!=null) return new Date(fixYear(m[3]), mon, +m[1]);
+  }
+  // Jun-2026 / June 2026
+  if((m = s.match(/^([A-Za-z]{3,})[-\/\s](\d{2,4})$/))){
+    const mon = mi[m[1].slice(0,3).toLowerCase()];
+    if(mon!=null) return new Date(fixYear(m[2]), mon, 1);
+  }
+  // all-numeric: DD-MM-YYYY / YYYY-MM-DD / DD/MM/YY etc.
+  if((m = s.match(/^(\d{1,4})[-\/.](\d{1,2})[-\/.](\d{1,4})$/))){
+    const a=+m[1], b=+m[2], c=+m[3];
+    if(m[1].length===4) return new Date(a, b-1, c);      // year first
+    let day=a, mon=b;                                     // assume day-first (Indian format)
+    if(a<=12 && b>12){ day=b; mon=a; }                    // obvious month/day swap
+    return new Date(fixYear(c), mon-1, day);
+  }
+  const t = Date.parse(s);
+  return isNaN(t) ? null : new Date(t);
+}
+function monthLabel(val){
+  const d = toDate(val);
+  return d ? MONTHS[d.getMonth()]+'-'+d.getFullYear() : null;
+}
+function monthSortKey(my){
+  const p = my.split('-');
+  return (+p[1])*100 + MONTHS.indexOf(p[0]);
+}
+
+/* Find the real column name that matches one of the candidate labels */
+function findKey(header, candidates){
+  const H = header.map(h=>[norm(h), h]);
+  for(const c of candidates){ const n=norm(c); const hit=H.find(([k])=>k===n); if(hit) return hit[1]; }
+  for(const c of candidates){ const n=norm(c); const hit=H.find(([k])=>k&&(k.includes(n)||n.includes(k))); if(hit) return hit[1]; }
+  return null;
+}
+
+/* Detect which row is the header (government reports often have title rows on top) */
+function detectHeaderRow(rows, mustGroups){
+  const limit = Math.min(rows.length, 20);
+  for(let i=0;i<limit;i++){
+    const keys = (rows[i]||[]).map(norm);
+    const ok = mustGroups.every(group =>
+      group.some(cand => keys.some(k => k && (k===norm(cand) || k.includes(norm(cand)) || norm(cand).includes(k))))
+    );
+    if(ok) return i;
+  }
+  for(let i=0;i<rows.length;i++){ if((rows[i]||[]).some(c=>c!=='' && c!=null)) return i; }
+  return 0;
+}
+
+/* Read an ArrayBuffer into {header, objs}.
+   raw:true keeps text dates as strings (so DD/MM/YYYY is parsed day-first, not US
+   month-first) while real Excel date cells arrive as unambiguous serial numbers. */
+function readWorkbook(buf, mustGroups){
+  const wb = XLSX.read(buf, {type:'array', raw:true});
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+  const hIdx = detectHeaderRow(rows, mustGroups);
+  const header = (rows[hIdx]||[]).map(h=>String(h).trim());
+  const objs = [];
+  for(let i=hIdx+1;i<rows.length;i++){
+    const r = rows[i];
+    if(!r || !r.some(c=>c!=='' && c!=null)) continue;
+    const o = {};
+    header.forEach((h,j)=>{ if(h!=='') o[h] = (r[j]===undefined?'':r[j]); });
+    objs.push(o);
+  }
+  return {header, objs};
+}
+
+/* ---------- file input handling ---------- */
+const MUST = {
+  village: [['village'], ['username','user']],
+  detail:  [['villagename','village'], ['applicationdate','appdate','date']],
+};
+
+document.querySelectorAll('input[type=file]').forEach(inp=>{
+  inp.addEventListener('change', async (e)=>{
+    const cat = inp.dataset.cat;
+    const file = e.target.files[0];
+    if(!file) return;
+    const badge = document.querySelector('[data-badge="'+cat+'"]');
+    badge.className = 'badge'; badge.textContent = 'reading…';
+    try{
+      const buf = await file.arrayBuffer();
+      const must = cat==='village' ? MUST.village : MUST.detail;
+      const parsed = readWorkbook(buf, must);
+      parsed.name = file.name;
+      store[cat] = parsed;
+      badge.className = 'badge ok';
+      badge.textContent = '✓ ' + parsed.objs.length + ' rows';
+    }catch(err){
+      store[cat] = null;
+      badge.className = 'badge err';
+      badge.textContent = 'error';
+      console.error(err);
+    }
+    document.getElementById('exportBtn').disabled = true;
+    maybeAutoRender();
+  });
+});
+
+function loadedCount(){ return Object.values(store).filter(Boolean).length; }
+function maybeAutoRender(){ if(loadedCount()===5) render(); }
+
+document.getElementById('refreshBtn').addEventListener('click', render);
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  Object.keys(store).forEach(k=>store[k]=null);
+  document.querySelectorAll('input[type=file]').forEach(i=>i.value='');
+  document.querySelectorAll('.badge').forEach(b=>{b.className='badge'; b.textContent='not loaded';});
+  document.getElementById('warnings').innerHTML='';
+  document.getElementById('meta').textContent='';
+  document.getElementById('tablewrap').innerHTML='<div class="empty">No summary yet — upload your files to begin.</div>';
+  document.getElementById('exportBtn').disabled = true;
+});
+
+/* ============================================================
+   Core aggregation
+   ============================================================ */
+function buildVillageMap(){
+  const map = new Map();           // normalizedVillage -> user name
+  if(!store.village) return map;
+  const {header, objs} = store.village;
+  const vKey = findKey(header, ['Village','Village Name','VillageName']);
+  const uKey = findKey(header, ['User name','User Name','Username','User']);
+  for(const o of objs){
+    const vN = norm(o[vKey]); const u = String(o[uKey]==null?'':o[uKey]).trim();
+    if(vN && u){ map.set(vN, u); }
+  }
+  return map;
+}
+
+function aggregate(){
+  const villageToUser = buildVillageMap();
+  const counts = {};                            // cat -> user -> month -> n
+  const monthsByCat = {};                       // cat -> Set(month)
+  const users = new Set();
+  const unmatched = new Map();                  // originalVillage -> {count, cats:Set}
+  const badDates = {};                          // cat -> count
+  let totalRows = 0, matchedRows = 0;
+
+  CATS.forEach(c=>{ counts[c.key]={}; monthsByCat[c.key]=new Set(); badDates[c.key]=0; });
+
+  for(const cat of CATS){
+    const f = store[cat.key];
+    if(!f) continue;
+    const vKey = findKey(f.header, ['Village Name','VillageName','Village']);
+    const dKey = findKey(f.header, ['Application Date','ApplicationDate','App Date','Date']);
+    for(const o of f.objs){
+      totalRows++;
+      const vRaw = o[vKey];
+      const user = villageToUser.get(norm(vRaw));
+      if(!user){
+        const key = (vRaw==null||String(vRaw).trim()==='') ? '(blank village)' : String(vRaw).trim();
+        const rec = unmatched.get(key) || {count:0, cats:new Set()};
+        rec.count++; rec.cats.add(cat.label); unmatched.set(key, rec);
+        continue;
+      }
+      const my = monthLabel(o[dKey]);
+      if(!my){ badDates[cat.key]++; continue; }
+      matchedRows++;
+      users.add(user);
+      monthsByCat[cat.key].add(my);
+      (counts[cat.key][user] = counts[cat.key][user] || {});
+      counts[cat.key][user][my] = (counts[cat.key][user][my]||0) + 1;
+    }
+  }
+
+  const monthsSorted = {};
+  CATS.forEach(c=> monthsSorted[c.key] = Array.from(monthsByCat[c.key]).sort((a,b)=>monthSortKey(a)-monthSortKey(b)));
+  const userList = Array.from(users).sort((a,b)=>a.localeCompare(b));
+  return {counts, months:monthsSorted, users:userList, unmatched, badDates, totalRows, matchedRows};
+}
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+let lastMatrix = null;   // for export
+
+function render(){
+  const A = aggregate();
+  renderWarnings(A);
+
+  const wrap = document.getElementById('tablewrap');
+  if(A.users.length===0){
+    wrap.innerHTML = '<div class="empty">No matched applications to summarise yet.'+
+      (loadedCount()<5 ? ' ('+loadedCount()+' of 5 files loaded.)' : ' Check the unmatched-village warning above.')+'</div>';
+    document.getElementById('meta').textContent='';
+    document.getElementById('exportBtn').disabled = true;
+    return;
+  }
+
+  const cnt = (cat,u,m)=> (A.counts[cat][u] && A.counts[cat][u][m]) || 0;
+  const catTotal = (cat,u)=> A.months[cat].reduce((s,m)=>s+cnt(cat,u,m),0);
+  const grand = (u)=> CATS.reduce((s,c)=>s+catTotal(c.key,u),0);
+
+  /* ---- header rows ---- */
+  let h1 = '<tr><th class="corner" rowspan="2">User name</th>';
+  let h2 = '<tr>';
+  CATS.forEach(c=>{
+    const span = A.months[c.key].length + 1;
+    h1 += '<th class="'+c.g+'" colspan="'+span+'">'+esc(c.label)+'</th>';
+    A.months[c.key].forEach(m=> h2 += '<th class="'+c.s+'">'+esc(m)+'</th>');
+    h2 += '<th class="'+c.t+'">Total</th>';
+  });
+  h1 += '<th class="g-grand" rowspan="2">Grand Total</th></tr>';
+  h2 += '</tr>';
+
+  /* ---- body rows ---- */
+  let body = '';
+  const num = (v,cls)=> '<td class="num '+(cls||'')+(v===0?' zero':'')+'">'+v+'</td>';
+  A.users.forEach(u=>{
+    let row = '<tr><td class="user">'+esc(u)+'</td>';
+    CATS.forEach(c=>{
+      A.months[c.key].forEach(m=> row += num(cnt(c.key,u,m)));
+      row += num(catTotal(c.key,u), c.t);
+    });
+    row += num(grand(u), 't-grand');
+    row += '</tr>';
+    body += row;
+  });
+
+  /* ---- total row ---- */
+  const colSum = (cat,m)=> A.users.reduce((s,u)=>s+cnt(cat,u,m),0);
+  const catColSum = (cat)=> A.users.reduce((s,u)=>s+catTotal(cat,u),0);
+  const grandColSum = ()=> A.users.reduce((s,u)=>s+grand(u),0);
+  let total = '<tr class="totalRow"><td class="user">Total</td>';
+  CATS.forEach(c=>{
+    A.months[c.key].forEach(m=> total += '<td class="num">'+colSum(c.key,m)+'</td>');
+    total += '<td class="num '+c.t+'">'+catColSum(c.key)+'</td>';
+  });
+  total += '<td class="num t-grand">'+grandColSum()+'</td></tr>';
+
+  wrap.innerHTML = '<table><thead>'+h1+h2+'</thead><tbody>'+body+total+'</tbody></table>';
+
+  /* ---- meta line ---- */
+  document.getElementById('meta').innerHTML =
+    '<b>'+A.users.length+'</b> users · <b>'+A.matchedRows+'</b> matched applications of '+A.totalRows+
+    ' rows read across the four detail files.';
+
+  /* ---- build export matrix (flattened single header row) ---- */
+  buildMatrix(A, cnt, catTotal, grand, colSum, catColSum, grandColSum);
+  document.getElementById('exportBtn').disabled = false;
+}
+
+function renderWarnings(A){
+  const box = document.getElementById('warnings');
+  let html = '';
+
+  if(!store.village){
+    html += '<div class="warn"><h3>Village Details not loaded</h3>'+
+      'Without the mapping file, no application can be assigned to a user — everything will show as unmatched. '+
+      'Please upload <code class="k">Village Details</code>.</div>';
+  }
+  const missing = Object.keys(store).filter(k=>!store[k]);
+  if(missing.length && missing.length<5){
+    const names = {village:'Village Details', isdRural:'ISD Rural', isdNatham:'ISD Natham', flineRural:'F Line Rural', flineNatham:'F Line Natham'};
+    html += '<div class="warn info"><h3>Waiting on '+missing.length+' file(s)</h3>Not yet loaded: '+
+      missing.map(k=>esc(names[k])).join(', ')+'. The table shows whatever is available; reload the rest and it recalculates automatically.</div>';
+  }
+
+  if(A.unmatched.size){
+    const entries = Array.from(A.unmatched.entries()).sort((a,b)=>b[1].count-a[1].count);
+    const totalUn = entries.reduce((s,kv)=>s+kv[1].count,0);
+    const items = entries.slice(0,40).map(kv=>
+      '<li>'+esc(kv[0])+' — '+kv[1].count+' app'+(kv[1].count>1?'s':'')+' <small style="color:#8a6100">['+Array.from(kv[1].cats).join(', ')+']</small></li>'
+    ).join('');
+    const more = entries.length>40 ? '<li>…and '+(entries.length-40)+' more village(s)</li>' : '';
+    html += '<div class="warn"><h3>'+totalUn+' application(s) from '+entries.length+' village(s) had no matching user</h3>'+
+      'These rows are excluded from the totals below. Add the villages to <code class="k">Village Details</code> to include them.'+
+      '<ul>'+items+more+'</ul></div>';
+  }
+
+  const badTotal = Object.values(A.badDates).reduce((s,n)=>s+n,0);
+  if(badTotal){
+    html += '<div class="warn"><h3>'+badTotal+' row(s) had an unreadable Application Date</h3>'+
+      'These rows were skipped. Check the date format in the source files.</div>';
+  }
+
+  box.innerHTML = html;
+}
+
+/* Flattened matrix for Excel export */
+function buildMatrix(A, cnt, catTotal, grand, colSum, catColSum, grandColSum){
+  const header = ['User name'];
+  CATS.forEach(c=>{
+    A.months[c.key].forEach(m=> header.push(c.label+' · '+m));
+    header.push(c.label+' · Total');
+  });
+  header.push('Grand Total');
+  const rows = [header];
+  A.users.forEach(u=>{
+    const r = [u];
+    CATS.forEach(c=>{ A.months[c.key].forEach(m=> r.push(cnt(c.key,u,m))); r.push(catTotal(c.key,u)); });
+    r.push(grand(u));
+    rows.push(r);
+  });
+  const tr = ['Total'];
+  CATS.forEach(c=>{ A.months[c.key].forEach(m=> tr.push(colSum(c.key,m))); tr.push(catColSum(c.key)); });
+  tr.push(grandColSum());
+  rows.push(tr);
+  lastMatrix = rows;
+}
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  if(!lastMatrix) return;
+  const ws = XLSX.utils.aoa_to_sheet(lastMatrix);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Summary');
+  XLSX.writeFile(wb, 'village_summary.xlsx');
+});
+</script>
+</body>
+</html>
