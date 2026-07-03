@@ -45,6 +45,9 @@
          background:#eef0f3; color:#6b7280; border:1px solid #e0e3e8}
   .badge.ok{background:#e7f6ec; color:#1a7f43; border-color:#bfe6cd}
   .badge.err{background:#fdecec; color:#b42318; border-color:#f5c6c2}
+  .tmpl{flex:0 0 auto; font-size:11px; padding:4px 10px; border-radius:6px; background:#eef4ff; color:#1d4ed8; border:1px solid #cddbfa; cursor:pointer}
+  .tmpl:hover{background:#dbe7ff}
+  .tmplnote{font-size:12px; color:var(--muted); margin:12px 2px 0; line-height:1.5}
 
   .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center}
   button{font:inherit; font-size:13px; border-radius:8px; padding:9px 16px; cursor:pointer; border:1px solid transparent}
@@ -120,34 +123,41 @@
   <div class="card">
     <h2>1 · Upload source files</h2>
     <div class="uploads">
-      <label class="drop">
+      <div class="drop">
         <span class="lab"><b>Village Details</b><small>Sl.No · Village · User name</small></span>
         <input type="file" data-cat="village" accept=".xlsx,.xls,.csv">
+        <button class="tmpl" type="button" data-tmpl="village">Template</button>
         <span class="badge" data-badge="village">not loaded</span>
-      </label>
-      <label class="drop">
+      </div>
+      <div class="drop">
         <span class="lab"><b>F Line — Rural</b><small>District…Village Name…App Date…Status</small></span>
         <input type="file" data-cat="flineRural" accept=".xlsx,.xls,.csv">
+        <button class="tmpl" type="button" data-tmpl="flineRural">Template</button>
         <span class="badge" data-badge="flineRural">not loaded</span>
-      </label>
-      <label class="drop">
+      </div>
+      <div class="drop">
         <span class="lab"><b>F Line — Natham</b><small>same columns as F Line Rural</small></span>
         <input type="file" data-cat="flineNatham" accept=".xlsx,.xls,.csv">
+        <button class="tmpl" type="button" data-tmpl="flineNatham">Template</button>
         <span class="badge" data-badge="flineNatham">not loaded</span>
-      </label>
-      <label class="drop">
+      </div>
+      <div class="drop">
         <span class="lab"><b>ISD — Rural</b><small>S.No…Village Name…App Date…Status</small></span>
         <input type="file" data-cat="isdRural" accept=".xlsx,.xls,.csv">
+        <button class="tmpl" type="button" data-tmpl="isdRural">Template</button>
         <span class="badge" data-badge="isdRural">not loaded</span>
-      </label>
-      <label class="drop">
+      </div>
+      <div class="drop">
         <span class="lab"><b>ISD — Natham</b><small>same columns as ISD Rural</small></span>
         <input type="file" data-cat="isdNatham" accept=".xlsx,.xls,.csv">
+        <button class="tmpl" type="button" data-tmpl="isdNatham">Template</button>
         <span class="badge" data-badge="isdNatham">not loaded</span>
-      </label>
+      </div>
     </div>
+    <p class="tmplnote">New to this? Click <b>Template</b> on any row (or <b>Download all 5 templates</b> below) to get an Excel file with the exact column headers and a couple of example rows — dates shown in <code class="k">DD-MM-YYYY</code> day-first format. Replace the sample rows with your data.</p>
     <div class="actions">
       <button class="primary" id="refreshBtn">Refresh / recalculate</button>
+      <button class="ghost" id="tmplAllBtn">⬇ Download all 5 templates</button>
       <button class="ghost" id="exportBtn" disabled>Export table to Excel</button>
       <button class="ghost" id="clearBtn">Clear all</button>
       <span class="hint" id="autohint">The summary renders automatically once all five files are loaded.</span>
@@ -515,6 +525,58 @@ function buildMatrix(A, cnt, catTotal, grand, colSum, catColSum, grandColSum){
   rows.push(tr);
   lastMatrix = rows;
 }
+
+/* ============================================================
+   Blank templates — exact headers + a few sample rows per source file.
+   Dates are written in DD-MM-YYYY (day-first) to match the parser.
+   ============================================================ */
+const TEMPLATES = {
+  village: { sheet:'Village Details', file:'template_village_details.xlsx', rows:[
+    ['Sl.No','Village','User name'],
+    [1,'Alangudi','Ravi'],
+    [2,'Melur','Ravi'],
+    [3,'Kottampatti','Priya'],
+  ]},
+  flineRural: { sheet:'F Line Rural', file:'template_f_line_rural.xlsx', rows:[
+    ['District Name','Taluk Name','Village Name','Application Id','SurveyNo-SubdivNo','Application Date','Number of days pending','Application Status'],
+    ['Madurai','Melur','Alangudi','FR1001','123/2A','05-06-2026',12,'Pending'],
+    ['Madurai','Melur','Melur','FR1002','45/1B','18-06-2026',5,'Pending'],
+  ]},
+  flineNatham: { sheet:'F Line Natham', file:'template_f_line_natham.xlsx', rows:[
+    ['District Name','Taluk Name','Village Name','Application Id','SurveyNo-SubdivNo','Application Date','Number of days pending','Application Status'],
+    ['Madurai','Melur','Kottampatti','FN2001','88/3','02-07-2026',8,'Pending'],
+  ]},
+  isdRural: { sheet:'ISD Rural', file:'template_isd_rural.xlsx', rows:[
+    ['S.No','District Name','Taluk Name','Village Name','Application ID','Application Date','RTR-STR','Update Date','Pending At','Application Status'],
+    [1,'Madurai','Melur','Alangudi','ISD5001','03-06-2026','RTR','10-06-2026','Surveyor','Pending'],
+    [2,'Madurai','Melur','Melur','ISD5002','21-06-2026','STR','25-06-2026','RI','Approved'],
+  ]},
+  isdNatham: { sheet:'ISD Natham', file:'template_isd_natham.xlsx', rows:[
+    ['S.No','District Name','Taluk Name','Village Name','Application ID','Application Date','RTR-STR','Update Date','Pending At','Application Status'],
+    [1,'Madurai','Melur','Kottampatti','ISD6001','09-07-2026','RTR','12-07-2026','Surveyor','Pending'],
+  ]},
+};
+function tmplSheet(rows){
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = rows[0].map(h=>({wch:Math.max(12, String(h).length+2)}));
+  return ws;
+}
+function downloadTemplate(cat){
+  const t = TEMPLATES[cat]; if(!t) return;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, tmplSheet(t.rows), t.sheet.slice(0,31));
+  XLSX.writeFile(wb, t.file);
+}
+function downloadAllTemplates(){
+  const wb = XLSX.utils.book_new();
+  ['village','flineRural','flineNatham','isdRural','isdNatham'].forEach(cat=>{
+    const t = TEMPLATES[cat];
+    XLSX.utils.book_append_sheet(wb, tmplSheet(t.rows), t.sheet.slice(0,31));
+  });
+  XLSX.writeFile(wb, 'village_summary_templates.xlsx');
+}
+document.querySelectorAll('[data-tmpl]').forEach(b=> b.addEventListener('click', ()=> downloadTemplate(b.dataset.tmpl)));
+document.getElementById('tmplAllBtn').addEventListener('click', downloadAllTemplates);
 
 document.getElementById('exportBtn').addEventListener('click', ()=>{
   if(!lastMatrix) return;
