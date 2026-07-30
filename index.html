@@ -3,20 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Village Applications Summary Dashboard</title>
-<!-- SheetJS (xlsx) via CDN — parses Excel/CSV entirely client-side, no server needed -->
+<title>Village Applications — Pending Days Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
-    /* ISD (Rural) — tan / olive */
     --g-isd:#B3A369; --s-isd:#E7E0C2; --t-isd:#CFC38C; --txt-isd:#3f3a12;
-    /* ISD (Natham) — pink */
     --g-nat:#DB7FA6; --s-nat:#F6DCE7; --t-nat:#EAAEC8; --txt-nat:#5a2740;
-    /* F Line (Rural) — green */
     --g-fr:#7FB85C;  --s-fr:#D8ECC8;  --t-fr:#A9D08E;  --txt-fr:#244a12;
-    /* F Line (Natham) — purple */
     --g-fn:#8E7CC3;  --s-fn:#DED8F0;  --t-fn:#B4A7D6;  --txt-fn:#2c2340;
-    /* Grand Total — orange */
     --g-grand:#E58F3A; --t-grand:#F4B183; --txt-grand:#5a3410;
     --ink:#1f2430; --muted:#6b7280; --line:#c9ccd3; --bg:#f4f5f7;
   }
@@ -32,7 +26,6 @@
         box-shadow:0 1px 2px rgba(0,0,0,.04)}
   .card h2{font-size:14px; margin:0 0 14px; text-transform:uppercase; letter-spacing:.04em; color:#374151}
 
-  /* Upload grid */
   .uploads{display:grid; grid-template-columns:1fr; gap:10px}
   @media(min-width:760px){.uploads{grid-template-columns:1fr 1fr}}
   .drop{display:flex; align-items:center; gap:12px; border:1px dashed #c3c7cf; border-radius:8px;
@@ -58,7 +51,6 @@
   button:disabled{opacity:.5; cursor:not-allowed}
   .hint{color:var(--muted); font-size:12px; margin-left:auto}
 
-  /* Warnings */
   .warn{border-left:4px solid #f0a500; background:#fff8e6; padding:12px 14px; border-radius:6px;
         font-size:13px; margin-bottom:14px}
   .warn h3{margin:0 0 6px; font-size:13px; color:#8a6100}
@@ -67,26 +59,22 @@
   .warn.info{border-left-color:#2563eb; background:#eef4ff}
   .warn.info h3{color:#1d4ed8}
 
-  /* Legend */
   .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:#374151; margin-top:4px}
   .legend span{display:inline-flex; align-items:center; gap:6px}
   .legend i{width:14px; height:14px; border-radius:3px; display:inline-block; border:1px solid rgba(0,0,0,.15)}
 
-  /* Table */
-  .tablewrap{overflow:auto; max-height:74vh; border:1px solid var(--line); border-radius:8px}
+  .tablewrap{overflow:auto; max-height:76vh; border:1px solid var(--line); border-radius:8px}
   table{border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; font-size:12.5px}
   th,td{border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:6px 10px; text-align:center; white-space:nowrap}
   th{font-weight:700}
   thead th{position:sticky; top:0; z-index:3}
   thead tr:nth-child(2) th{top:31px}
   td.user,th.corner{text-align:left; font-weight:600}
-  /* sticky first column */
   th.corner,td.user{position:sticky; left:0; z-index:2; background:#fff; border-right:2px solid #9aa0aa}
   th.corner{z-index:5; background:#f0f2f5}
   td.num{font-variant-numeric:tabular-nums}
   td.zero{color:#c2c6cd}
 
-  /* color classes */
   .g-isd{background:var(--g-isd); color:var(--txt-isd)}
   .s-isd{background:var(--s-isd); color:var(--txt-isd)}
   .t-isd{background:var(--t-isd); color:var(--txt-isd); font-weight:700}
@@ -117,8 +105,8 @@
 </style>
 </head>
 <body>
-  <h1>Village Applications — Summary Report</h1>
-  <p class="sub">Upload the five source files below. Everything is parsed and calculated in your browser — nothing is uploaded to any server.</p>
+  <h1>Village Applications — Pending Days Dashboard</h1>
+  <p class="sub">Upload the five source files below. Each application is bucketed by days pending. Everything runs in your browser — nothing is uploaded.</p>
 
   <div class="card">
     <h2>1 · Upload source files</h2>
@@ -130,7 +118,7 @@
         <span class="badge" data-badge="village">not loaded</span>
       </div>
       <div class="drop">
-        <span class="lab"><b>F Line — Rural</b><small>District…Village Name…App Date…Status</small></span>
+        <span class="lab"><b>F Line — Rural</b><small>District…Village…App Date…Days Pending…Status</small></span>
         <input type="file" data-cat="flineRural" accept=".xlsx,.xls,.csv">
         <button class="tmpl" type="button" data-tmpl="flineRural">Template</button>
         <span class="badge" data-badge="flineRural">not loaded</span>
@@ -142,7 +130,7 @@
         <span class="badge" data-badge="flineNatham">not loaded</span>
       </div>
       <div class="drop">
-        <span class="lab"><b>ISD — Rural</b><small>S.No…Village Name…App Date…Status</small></span>
+        <span class="lab"><b>ISD — Rural</b><small>S.No…Village…App Date…Update Date…Status</small></span>
         <input type="file" data-cat="isdRural" accept=".xlsx,.xls,.csv">
         <button class="tmpl" type="button" data-tmpl="isdRural">Template</button>
         <span class="badge" data-badge="isdRural">not loaded</span>
@@ -154,20 +142,20 @@
         <span class="badge" data-badge="isdNatham">not loaded</span>
       </div>
     </div>
-    <p class="tmplnote">New to this? Click <b>Template</b> on any row (or <b>Download all 5 templates</b> below) to get an Excel file with the exact column headers and a couple of example rows — dates shown in <code class="k">DD-MM-YYYY</code> day-first format. Replace the sample rows with your data.</p>
+    <p class="tmplnote">New? Click <b>Template</b> on any row to get a sample Excel file. Dates shown in <code class="k">DD-MM-YYYY</code> format. <b>F Line</b> files need a <code class="k">Number of days pending</code> column. <b>ISD</b> files use App Date (vs. today) when no explicit pending-days column exists.</p>
     <div class="actions">
       <button class="primary" id="refreshBtn">Refresh / recalculate</button>
-      <button class="ghost" id="tmplAllBtn">⬇ Download all 5 templates</button>
+      <button class="ghost" id="tmplAllBtn">&#11015; Download all 5 templates</button>
       <button class="ghost" id="exportBtn" disabled>Export table to Excel</button>
       <button class="ghost" id="clearBtn">Clear all</button>
-      <span class="hint" id="autohint">The summary renders automatically once all five files are loaded.</span>
+      <span class="hint" id="autohint">Dashboard renders once all five files are loaded.</span>
     </div>
   </div>
 
   <div id="warnings"></div>
 
   <div class="card">
-    <h2>2 · Summary</h2>
+    <h2>2 · Summary — Applications by pending-days bucket</h2>
     <p class="meta" id="meta"></p>
     <div class="legend">
       <span><i style="background:var(--g-isd)"></i>ISD (Rural)</span>
@@ -184,7 +172,7 @@
 <script>
 "use strict";
 /* ============================================================
-   Category definitions — order here == column-group order in table.
+   Category definitions
    ============================================================ */
 const CATS = [
   {key:'isdRural',    label:'ISD (Rural)',     g:'g-isd', s:'s-isd', t:'t-isd'},
@@ -192,32 +180,35 @@ const CATS = [
   {key:'flineRural',  label:'F Line (Rural)',  g:'g-fr',  s:'s-fr',  t:'t-fr'},
   {key:'flineNatham', label:'F Line (Natham)', g:'g-fn',  s:'s-fn',  t:'t-fn'},
 ];
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-/* In-memory store of parsed files: cat -> {header:[], objs:[{}], name} */
+/* Pending-day buckets */
+const BUCKETS = [
+  {key:'d20',   label:'<20 days',  min:0,  max:19},
+  {key:'d25',   label:'20-25 days', min:20, max:24},
+  {key:'d30',   label:'25-30 days', min:25, max:29},
+  {key:'d30p',  label:'30+ days',   min:30, max:Infinity},
+];
+
+/* In-memory store */
 const store = {village:null, isdRural:null, isdNatham:null, flineRural:null, flineNatham:null};
 
-/* ---------- small helpers ---------- */
+/* ---------- helpers ---------- */
 const norm = s => String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
 const esc  = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function fixYear(y){ y=+y; return y<100 ? (y<70?2000+y:1900+y) : y; }
 
-/* Parse many possible date representations into a Date */
+/* Parse many date representations into a Date */
 function toDate(val){
   if(val==null || val==='') return null;
   if(val instanceof Date) return isNaN(val)?null:val;
   if(typeof val === 'number'){
-    // Excel serial date -> use SheetJS's SSF parser (handles the 1900 leap-year quirk)
-    try{
-      const dc = XLSX.SSF.parse_date_code(val);
-      if(dc && dc.y) return new Date(dc.y, dc.m-1, dc.d);
-    }catch(e){}
+    try{ const dc = XLSX.SSF.parse_date_code(val); if(dc && dc.y) return new Date(dc.y, dc.m-1, dc.d); }catch(e){}
     return null;
   }
   let s = String(val).trim();
   if(!s) return null;
-  s = s.split(/[ T]/)[0]; // drop any time component
+  s = s.split(/[ T]/)[0];
   const mi = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
   let m;
   // 01-Jun-2026 / 1/Jun/26
@@ -225,32 +216,24 @@ function toDate(val){
     const mon = mi[m[2].slice(0,3).toLowerCase()];
     if(mon!=null) return new Date(fixYear(m[3]), mon, +m[1]);
   }
-  // Jun-2026 / June 2026
+  // Jun-2026
   if((m = s.match(/^([A-Za-z]{3,})[-\/\s](\d{2,4})$/))){
     const mon = mi[m[1].slice(0,3).toLowerCase()];
     if(mon!=null) return new Date(fixYear(m[2]), mon, 1);
   }
-  // all-numeric: DD-MM-YYYY / YYYY-MM-DD / DD/MM/YY etc.
+  // all-numeric: DD-MM-YYYY / YYYY-MM-DD / DD/MM/YY
   if((m = s.match(/^(\d{1,4})[-\/.](\d{1,2})[-\/.](\d{1,4})$/))){
     const a=+m[1], b=+m[2], c=+m[3];
-    if(m[1].length===4) return new Date(a, b-1, c);      // year first
-    let day=a, mon=b;                                     // assume day-first (Indian format)
-    if(a<=12 && b>12){ day=b; mon=a; }                    // obvious month/day swap
+    if(m[1].length===4) return new Date(a, b-1, c);
+    let day=a, mon=b;
+    if(a<=12 && b>12){ day=b; mon=a; }
     return new Date(fixYear(c), mon-1, day);
   }
   const t = Date.parse(s);
   return isNaN(t) ? null : new Date(t);
 }
-function monthLabel(val){
-  const d = toDate(val);
-  return d ? MONTHS[d.getMonth()]+'-'+d.getFullYear() : null;
-}
-function monthSortKey(my){
-  const p = my.split('-');
-  return (+p[1])*100 + MONTHS.indexOf(p[0]);
-}
 
-/* Find the real column name that matches one of the candidate labels */
+/* Find real column matching candidates */
 function findKey(header, candidates){
   const H = header.map(h=>[norm(h), h]);
   for(const c of candidates){ const n=norm(c); const hit=H.find(([k])=>k===n); if(hit) return hit[1]; }
@@ -258,7 +241,7 @@ function findKey(header, candidates){
   return null;
 }
 
-/* Detect which row is the header (government reports often have title rows on top) */
+/* Detect header row */
 function detectHeaderRow(rows, mustGroups){
   const limit = Math.min(rows.length, 20);
   for(let i=0;i<limit;i++){
@@ -272,9 +255,7 @@ function detectHeaderRow(rows, mustGroups){
   return 0;
 }
 
-/* Read an ArrayBuffer into {header, objs}.
-   raw:true keeps text dates as strings (so DD/MM/YYYY is parsed day-first, not US
-   month-first) while real Excel date cells arrive as unambiguous serial numbers. */
+/* Read workbook -> {header, objs} */
 function readWorkbook(buf, mustGroups){
   const wb = XLSX.read(buf, {type:'array', raw:true});
   const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -292,7 +273,7 @@ function readWorkbook(buf, mustGroups){
   return {header, objs};
 }
 
-/* ---------- file input handling ---------- */
+/* ---------- file input ---------- */
 const MUST = {
   village: [['village'], ['username','user']],
   detail:  [['villagename','village'], ['applicationdate','appdate','date']],
@@ -339,37 +320,72 @@ document.getElementById('clearBtn').addEventListener('click', ()=>{
 });
 
 /* ============================================================
+   Days-pending computation & bucket assignment
+   ============================================================ */
+
+/** Determine how many days an application has been pending.
+ *  Priority: explicit "Number of days pending" column -> compute from Application Date to today.
+ *  Returns null when impossible. */
+function getDaysPending(obj, header){
+  // 1) Explicit column
+  const pCol = findKey(header, ['Number of days pending','Days Pending','Pending Days','Days pending','No of days pending']);
+  if(pCol){
+    const v = obj[pCol];
+    if(v != null && v !== ''){
+      const n = typeof v === 'number' ? v : parseInt(String(v).replace(/[^0-9.-]/g,''), 10);
+      if(!isNaN(n) && isFinite(n)) return Math.max(0, Math.round(n));
+    }
+  }
+  // 2) Compute from Application Date to today
+  const aCol = findKey(header, ['Application Date','ApplicationDate','App Date','Date']);
+  if(aCol){
+    const d = toDate(obj[aCol]);
+    if(d){
+      const now = new Date(); now.setHours(0,0,0,0);
+      const t  = new Date(d); t.setHours(0,0,0,0);
+      const diff = Math.floor((now - t) / 864e5);
+      return Math.max(0, diff);
+    }
+  }
+  return null;
+}
+
+/** Return the bucket key for a day count. */
+function bucketKey(days){
+  for(const b of BUCKETS) if(days >= b.min && days <= b.max) return b.key;
+  return BUCKETS[BUCKETS.length-1].key; // fallback
+}
+
+/* ============================================================
    Core aggregation
    ============================================================ */
 function buildVillageMap(){
-  const map = new Map();           // normalizedVillage -> user name
+  const map = new Map();
   if(!store.village) return map;
   const {header, objs} = store.village;
   const vKey = findKey(header, ['Village','Village Name','VillageName']);
   const uKey = findKey(header, ['User name','User Name','Username','User']);
   for(const o of objs){
     const vN = norm(o[vKey]); const u = String(o[uKey]==null?'':o[uKey]).trim();
-    if(vN && u){ map.set(vN, u); }
+    if(vN && u) map.set(vN, u);
   }
   return map;
 }
 
 function aggregate(){
   const villageToUser = buildVillageMap();
-  const counts = {};                            // cat -> user -> month -> n
-  const monthsByCat = {};                       // cat -> Set(month)
+  const counts = {};                  // cat -> user -> bucketKey -> count
   const users = new Set();
-  const unmatched = new Map();                  // originalVillage -> {count, cats:Set}
-  const badDates = {};                          // cat -> count
+  const unmatched = new Map();        // origVillage -> {count, cats:Set}
+  const unreadable = {};              // cat -> count of rows with unreadable days
   let totalRows = 0, matchedRows = 0;
 
-  CATS.forEach(c=>{ counts[c.key]={}; monthsByCat[c.key]=new Set(); badDates[c.key]=0; });
+  CATS.forEach(c=>{ counts[c.key]={}; unreadable[c.key]=0; });
 
   for(const cat of CATS){
     const f = store[cat.key];
     if(!f) continue;
     const vKey = findKey(f.header, ['Village Name','VillageName','Village']);
-    const dKey = findKey(f.header, ['Application Date','ApplicationDate','App Date','Date']);
     for(const o of f.objs){
       totalRows++;
       const vRaw = o[vKey];
@@ -380,26 +396,24 @@ function aggregate(){
         rec.count++; rec.cats.add(cat.label); unmatched.set(key, rec);
         continue;
       }
-      const my = monthLabel(o[dKey]);
-      if(!my){ badDates[cat.key]++; continue; }
+      const days = getDaysPending(o, f.header);
+      if(days === null){ unreadable[cat.key]++; continue; }
       matchedRows++;
       users.add(user);
-      monthsByCat[cat.key].add(my);
+      const bk = bucketKey(days);
       (counts[cat.key][user] = counts[cat.key][user] || {});
-      counts[cat.key][user][my] = (counts[cat.key][user][my]||0) + 1;
+      counts[cat.key][user][bk] = (counts[cat.key][user][bk]||0) + 1;
     }
   }
 
-  const monthsSorted = {};
-  CATS.forEach(c=> monthsSorted[c.key] = Array.from(monthsByCat[c.key]).sort((a,b)=>monthSortKey(a)-monthSortKey(b)));
   const userList = Array.from(users).sort((a,b)=>a.localeCompare(b));
-  return {counts, months:monthsSorted, users:userList, unmatched, badDates, totalRows, matchedRows};
+  return {counts, users:userList, unmatched, unreadable, totalRows, matchedRows};
 }
 
 /* ============================================================
    Rendering
    ============================================================ */
-let lastMatrix = null;   // for export
+let lastMatrix = null;
 
 function render(){
   const A = aggregate();
@@ -407,36 +421,36 @@ function render(){
 
   const wrap = document.getElementById('tablewrap');
   if(A.users.length===0){
-    wrap.innerHTML = '<div class="empty">No matched applications to summarise yet.'+
+    wrap.innerHTML = '<div class="empty">No matched applications to summarise.'+
       (loadedCount()<5 ? ' ('+loadedCount()+' of 5 files loaded.)' : ' Check the unmatched-village warning above.')+'</div>';
     document.getElementById('meta').textContent='';
     document.getElementById('exportBtn').disabled = true;
     return;
   }
 
-  const cnt = (cat,u,m)=> (A.counts[cat][u] && A.counts[cat][u][m]) || 0;
-  const catTotal = (cat,u)=> A.months[cat].reduce((s,m)=>s+cnt(cat,u,m),0);
-  const grand = (u)=> CATS.reduce((s,c)=>s+catTotal(c.key,u),0);
+  const cnt = (cat,u,bk) => (A.counts[cat][u] && A.counts[cat][u][bk]) || 0;
+  const catTotal = (cat,u) => BUCKETS.reduce((s,b)=>s+cnt(cat,u,b.key), 0);
+  const grand = (u) => CATS.reduce((s,c)=>s+catTotal(c.key,u), 0);
 
-  /* ---- header rows ---- */
+  /* ---- header ---- */
   let h1 = '<tr><th class="corner" rowspan="2">User name</th>';
   let h2 = '<tr>';
   CATS.forEach(c=>{
-    const span = A.months[c.key].length + 1;
+    const span = BUCKETS.length + 1; // 4 buckets + total
     h1 += '<th class="'+c.g+'" colspan="'+span+'">'+esc(c.label)+'</th>';
-    A.months[c.key].forEach(m=> h2 += '<th class="'+c.s+'">'+esc(m)+'</th>');
+    BUCKETS.forEach(b=> h2 += '<th class="'+c.s+'">'+esc(b.label)+'</th>');
     h2 += '<th class="'+c.t+'">Total</th>';
   });
   h1 += '<th class="g-grand" rowspan="2">Grand Total</th></tr>';
   h2 += '</tr>';
 
-  /* ---- body rows ---- */
+  /* ---- body ---- */
   let body = '';
   const num = (v,cls)=> '<td class="num '+(cls||'')+(v===0?' zero':'')+'">'+v+'</td>';
   A.users.forEach(u=>{
     let row = '<tr><td class="user">'+esc(u)+'</td>';
     CATS.forEach(c=>{
-      A.months[c.key].forEach(m=> row += num(cnt(c.key,u,m)));
+      BUCKETS.forEach(b=> row += num(cnt(c.key,u,b.key)));
       row += num(catTotal(c.key,u), c.t);
     });
     row += num(grand(u), 't-grand');
@@ -445,24 +459,23 @@ function render(){
   });
 
   /* ---- total row ---- */
-  const colSum = (cat,m)=> A.users.reduce((s,u)=>s+cnt(cat,u,m),0);
-  const catColSum = (cat)=> A.users.reduce((s,u)=>s+catTotal(cat,u),0);
-  const grandColSum = ()=> A.users.reduce((s,u)=>s+grand(u),0);
+  const colSum = (cat,bk) => A.users.reduce((s,u)=>s+cnt(cat,u,bk), 0);
+  const catColSum = (cat) => BUCKETS.reduce((s,b)=>s+colSum(cat,b.key), 0);
+  const grandColSum = () => CATS.reduce((s,c)=>s+catColSum(c.key), 0);
+
   let total = '<tr class="totalRow"><td class="user">Total</td>';
   CATS.forEach(c=>{
-    A.months[c.key].forEach(m=> total += '<td class="num">'+colSum(c.key,m)+'</td>');
+    BUCKETS.forEach(b=> total += '<td class="num">'+colSum(c.key,b.key)+'</td>');
     total += '<td class="num '+c.t+'">'+catColSum(c.key)+'</td>';
   });
   total += '<td class="num t-grand">'+grandColSum()+'</td></tr>';
 
   wrap.innerHTML = '<table><thead>'+h1+h2+'</thead><tbody>'+body+total+'</tbody></table>';
 
-  /* ---- meta line ---- */
   document.getElementById('meta').innerHTML =
     '<b>'+A.users.length+'</b> users · <b>'+A.matchedRows+'</b> matched applications of '+A.totalRows+
     ' rows read across the four detail files.';
 
-  /* ---- build export matrix (flattened single header row) ---- */
   buildMatrix(A, cnt, catTotal, grand, colSum, catColSum, grandColSum);
   document.getElementById('exportBtn').disabled = false;
 }
@@ -473,14 +486,14 @@ function renderWarnings(A){
 
   if(!store.village){
     html += '<div class="warn"><h3>Village Details not loaded</h3>'+
-      'Without the mapping file, no application can be assigned to a user — everything will show as unmatched. '+
+      'Without the mapping file, no application can be assigned to a user. '+
       'Please upload <code class="k">Village Details</code>.</div>';
   }
   const missing = Object.keys(store).filter(k=>!store[k]);
   if(missing.length && missing.length<5){
     const names = {village:'Village Details', isdRural:'ISD Rural', isdNatham:'ISD Natham', flineRural:'F Line Rural', flineNatham:'F Line Natham'};
     html += '<div class="warn info"><h3>Waiting on '+missing.length+' file(s)</h3>Not yet loaded: '+
-      missing.map(k=>esc(names[k])).join(', ')+'. The table shows whatever is available; reload the rest and it recalculates automatically.</div>';
+      missing.map(k=>esc(names[k])).join(', ')+'.</div>';
   }
 
   if(A.unmatched.size){
@@ -491,44 +504,46 @@ function renderWarnings(A){
     ).join('');
     const more = entries.length>40 ? '<li>…and '+(entries.length-40)+' more village(s)</li>' : '';
     html += '<div class="warn"><h3>'+totalUn+' application(s) from '+entries.length+' village(s) had no matching user</h3>'+
-      'These rows are excluded from the totals below. Add the villages to <code class="k">Village Details</code> to include them.'+
+      'These rows are excluded from the totals. Add the villages to <code class="k">Village Details</code> to include them.'+
       '<ul>'+items+more+'</ul></div>';
   }
 
-  const badTotal = Object.values(A.badDates).reduce((s,n)=>s+n,0);
+  const badTotal = Object.values(A.unreadable).reduce((s,n)=>s+n,0);
   if(badTotal){
-    html += '<div class="warn"><h3>'+badTotal+' row(s) had an unreadable Application Date</h3>'+
-      'These rows were skipped. Check the date format in the source files.</div>';
+    html += '<div class="warn"><h3>'+badTotal+' row(s) could not be bucketed (missing / unreadable date or pending-days value)</h3>'+
+      'These rows were skipped. Check the date columns in the source files.</div>';
   }
 
   box.innerHTML = html;
 }
 
-/* Flattened matrix for Excel export */
+/* Flat matrix for Excel export */
 function buildMatrix(A, cnt, catTotal, grand, colSum, catColSum, grandColSum){
   const header = ['User name'];
   CATS.forEach(c=>{
-    A.months[c.key].forEach(m=> header.push(c.label+' · '+m));
+    BUCKETS.forEach(b=> header.push(c.label+' · '+b.label));
     header.push(c.label+' · Total');
   });
   header.push('Grand Total');
   const rows = [header];
   A.users.forEach(u=>{
     const r = [u];
-    CATS.forEach(c=>{ A.months[c.key].forEach(m=> r.push(cnt(c.key,u,m))); r.push(catTotal(c.key,u)); });
+    CATS.forEach(c=>{ BUCKETS.forEach(b=> r.push(cnt(c.key,u,b.key))); r.push(catTotal(c.key,u)); });
     r.push(grand(u));
     rows.push(r);
   });
   const tr = ['Total'];
-  CATS.forEach(c=>{ A.months[c.key].forEach(m=> tr.push(colSum(c.key,m))); tr.push(catColSum(c.key)); });
+  CATS.forEach(c=>{ BUCKETS.forEach(b=> tr.push(colSum(c.key,b.key))); tr.push(catColSum(c.key)); });
   tr.push(grandColSum());
   rows.push(tr);
   lastMatrix = rows;
 }
 
 /* ============================================================
-   Blank templates — exact headers + a few sample rows per source file.
-   Dates are written in DD-MM-YYYY (day-first) to match the parser.
+   Blank templates — dates in DD-MM-YYYY format.
+   F-Line templates include Number of days pending (used directly).
+   ISD templates have no pending-days column — the app computes
+   pending days from Application Date to today's date.
    ============================================================ */
 const TEMPLATES = {
   village: { sheet:'Village Details', file:'template_village_details.xlsx', rows:[
@@ -540,22 +555,23 @@ const TEMPLATES = {
   flineRural: { sheet:'F Line Rural', file:'template_f_line_rural.xlsx', rows:[
     ['District Name','Taluk Name','Village Name','Application Id','SurveyNo-SubdivNo','Application Date','Number of days pending','Application Status'],
     ['Madurai','Melur','Alangudi','FR1001','123/2A','05-06-2026',12,'Pending'],
-    ['Madurai','Melur','Melur','FR1002','45/1B','18-06-2026',5,'Pending'],
+    ['Madurai','Melur','Melur','FR1002','45/1B','10-04-2026',80,'Pending'],
   ]},
   flineNatham: { sheet:'F Line Natham', file:'template_f_line_natham.xlsx', rows:[
     ['District Name','Taluk Name','Village Name','Application Id','SurveyNo-SubdivNo','Application Date','Number of days pending','Application Status'],
-    ['Madurai','Melur','Kottampatti','FN2001','88/3','02-07-2026',8,'Pending'],
+    ['Madurai','Melur','Kottampatti','FN2001','88/3','02-07-2026',22,'Pending'],
   ]},
   isdRural: { sheet:'ISD Rural', file:'template_isd_rural.xlsx', rows:[
     ['S.No','District Name','Taluk Name','Village Name','Application ID','Application Date','RTR-STR','Update Date','Pending At','Application Status'],
-    [1,'Madurai','Melur','Alangudi','ISD5001','03-06-2026','RTR','10-06-2026','Surveyor','Pending'],
-    [2,'Madurai','Melur','Melur','ISD5002','21-06-2026','STR','25-06-2026','RI','Approved'],
+    [1,'Madurai','Melur','Alangudi','ISD5001','10-07-2026','RTR','15-07-2026','Surveyor','Pending'],
+    [2,'Madurai','Melur','Melur','ISD5002','01-06-2026','STR','10-06-2026','RI','Approved'],
   ]},
   isdNatham: { sheet:'ISD Natham', file:'template_isd_natham.xlsx', rows:[
     ['S.No','District Name','Taluk Name','Village Name','Application ID','Application Date','RTR-STR','Update Date','Pending At','Application Status'],
-    [1,'Madurai','Melur','Kottampatti','ISD6001','09-07-2026','RTR','12-07-2026','Surveyor','Pending'],
+    [1,'Madurai','Melur','Kottampatti','ISD6001','20-07-2026','RTR','22-07-2026','Surveyor','Pending'],
   ]},
 };
+
 function tmplSheet(rows){
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = rows[0].map(h=>({wch:Math.max(12, String(h).length+2)}));
@@ -582,8 +598,8 @@ document.getElementById('exportBtn').addEventListener('click', ()=>{
   if(!lastMatrix) return;
   const ws = XLSX.utils.aoa_to_sheet(lastMatrix);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Summary');
-  XLSX.writeFile(wb, 'village_summary.xlsx');
+  XLSX.utils.book_append_sheet(wb, ws, 'Pending Days Summary');
+  XLSX.writeFile(wb, 'village_pending_days_summary.xlsx');
 });
 </script>
 </body>
