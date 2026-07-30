@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Village Applications — Pending Days Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --g-isd:#B3A369; --s-isd:#E7E0C2; --t-isd:#CFC38C; --txt-isd:#3f3a12;
     --g-nat:#DB7FA6; --s-nat:#F6DCE7; --t-nat:#EAAEC8; --txt-nat:#5a2740;
     --g-fr:#7FB85C;  --s-fr:#D8ECC8;  --t-fr:#A9D08E;  --txt-fr:#244a12;
     --g-fn:#8E7CC3;  --s-fn:#DED8F0;  --t-fn:#B4A7D6;  --txt-fn:#2c2340;
-    --g-grand:#E58F3A; --t-grand:#F4B183; --txt-grand:#5a3410;
     --ink:#1f2430; --muted:#6b7280; --line:#c9ccd3; --bg:#f4f5f7;
   }
   *{box-sizing:border-box}
@@ -59,10 +59,6 @@
   .warn.info{border-left-color:#2563eb; background:#eef4ff}
   .warn.info h3{color:#1d4ed8}
 
-  .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:#374151; margin-top:4px}
-  .legend span{display:inline-flex; align-items:center; gap:6px}
-  .legend i{width:14px; height:14px; border-radius:3px; display:inline-block; border:1px solid rgba(0,0,0,.15)}
-
   .tablewrap{overflow:auto; max-height:76vh; border:1px solid var(--line); border-radius:8px}
   table{border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; font-size:12.5px}
   th,td{border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:6px 10px; text-align:center; white-space:nowrap}
@@ -87,8 +83,6 @@
   .g-fn{background:var(--g-fn); color:var(--txt-fn)}
   .s-fn{background:var(--s-fn); color:var(--txt-fn)}
   .t-fn{background:var(--t-fn); color:var(--txt-fn); font-weight:700}
-  .g-grand{background:var(--g-grand); color:var(--txt-grand)}
-  .t-grand{background:var(--t-grand); color:var(--txt-grand); font-weight:700}
 
   tbody tr:nth-child(even) td.num{background:#fbfbfc}
   tbody tr.totalRow td{font-weight:700; background:#eceef1}
@@ -97,14 +91,30 @@
   tbody tr.totalRow td.t-nat{background:var(--t-nat)}
   tbody tr.totalRow td.t-fr{background:var(--t-fr)}
   tbody tr.totalRow td.t-fn{background:var(--t-fn)}
-  tbody tr.totalRow td.t-grand{background:var(--t-grand)}
 
   .empty{padding:48px 20px; text-align:center; color:var(--muted); font-size:14px}
   .meta{font-size:12px; color:var(--muted); margin:0 0 12px}
   code.k{background:#eef0f3; padding:1px 5px; border-radius:4px; font-size:11px}
+
+  /* ===== Print ===== */
+  .print-only{display:none}
+  @media print{
+    *,*::before,*::after{-webkit-print-color-adjust:exact!important; print-color-adjust:exact!important}
+    body{background:#fff; padding:0; margin:0}
+    .no-print{display:none!important}
+    .print-only{display:block!important}
+    #printContent{display:block!important}
+    .print-wrap{margin-bottom:24px}
+    table{font-size:9px; width:100%!important; border-collapse:separate; border-spacing:0}
+    th.corner,td.user{position:static!important; text-align:left}
+    thead th{position:static!important; top:auto!important}
+    h3{font-size:13px; margin:0 0 8px}
+    @page{margin:2in 0.5in 2in 0.5in}
+  }
 </style>
 </head>
 <body>
+  <div class="no-print">
   <h1>Village Applications — Pending Days Dashboard</h1>
   <p class="sub">Upload the five source files below. Each application is bucketed by days pending. Everything runs in your browser — nothing is uploaded.</p>
 
@@ -153,26 +163,50 @@
   </div>
 
   <div id="warnings"></div>
+  </div>
 
   <div class="card">
-    <h2>2 · Summary — Applications by pending-days bucket</h2>
-    <p class="meta" id="meta"></p>
-    <div class="legend">
+    <h2 class="no-print">2 · Summary — Applications by pending-days bucket</h2>
+    <p class="meta no-print" id="meta"></p>
+    <div class="legend no-print">
       <span><i style="background:var(--g-isd)"></i>ISD (Rural)</span>
       <span><i style="background:var(--g-nat)"></i>ISD (Natham)</span>
       <span><i style="background:var(--g-fr)"></i>F Line (Rural)</span>
       <span><i style="background:var(--g-fn)"></i>F Line (Natham)</span>
-      <span><i style="background:var(--g-grand)"></i>Grand Total</span>
     </div>
-    <div class="tablewrap" id="tablewrap" style="margin-top:12px">
+
+    <div class="tablewrap no-print" id="tablewrap" style="margin-top:12px">
       <div class="empty" id="empty">No summary yet — upload your files to begin.</div>
+    </div>
+
+    <!-- ===== Print-only: ISD top, F Line bottom, each with own user name column ===== -->
+    <div class="print-only" id="printContent">
+      <div style="text-align:center; margin-bottom:16px">
+        <h2 style="font-size:16px; margin:0 0 4px">Village Applications — Pending Days Summary</h2>
+        <p style="font-size:12px; margin:0; color:#555" id="printSubhead"></p>
+      </div>
+
+      <div class="print-wrap" id="printIsdWrap" style="margin-bottom:24px">
+        <h3 style="font-size:13px; margin:0 0 8px">ISD (Rural) &amp; ISD (Natham)</h3>
+        <div class="print-wrap-inner" id="printIsd"></div>
+      </div>
+
+      <div class="print-wrap" id="printFlineWrap">
+        <h3 style="font-size:13px; margin:0 0 8px">F Line (Rural) &amp; F Line (Natham)</h3>
+        <div class="print-wrap-inner" id="printFline"></div>
+      </div>
+    </div>
+
+    <div class="actions no-print" id="tableActions" style="display:none; margin-top:10px">
+      <button class="primary" id="printBtn">&#128424; Print table</button>
+      <button class="ghost" id="imageBtn">&#128247; Export to image</button>
     </div>
   </div>
 
 <script>
 "use strict";
 /* ============================================================
-   Category definitions
+   Category definitions — ISD first, then F Line
    ============================================================ */
 const CATS = [
   {key:'isdRural',    label:'ISD (Rural)',     g:'g-isd', s:'s-isd', t:'t-isd'},
@@ -192,13 +226,16 @@ const BUCKETS = [
 /* In-memory store */
 const store = {village:null, isdRural:null, isdNatham:null, flineRural:null, flineNatham:null};
 
+/* Two groups for printing — ISD cats first, F-Line cats second */
+const CATS_ISD   = CATS.slice(0,2);   // isdRural, isdNatham
+const CATS_FLINE = CATS.slice(2,4);   // flineRural, flineNatham
+
 /* ---------- helpers ---------- */
 const norm = s => String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
 const esc  = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function fixYear(y){ y=+y; return y<100 ? (y<70?2000+y:1900+y) : y; }
 
-/* Parse many date representations into a Date */
 function toDate(val){
   if(val==null || val==='') return null;
   if(val instanceof Date) return isNaN(val)?null:val;
@@ -211,17 +248,14 @@ function toDate(val){
   s = s.split(/[ T]/)[0];
   const mi = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
   let m;
-  // 01-Jun-2026 / 1/Jun/26
   if((m = s.match(/^(\d{1,2})[-\/\s]([A-Za-z]{3,})[-\/\s](\d{2,4})$/))){
     const mon = mi[m[2].slice(0,3).toLowerCase()];
     if(mon!=null) return new Date(fixYear(m[3]), mon, +m[1]);
   }
-  // Jun-2026
   if((m = s.match(/^([A-Za-z]{3,})[-\/\s](\d{2,4})$/))){
     const mon = mi[m[1].slice(0,3).toLowerCase()];
     if(mon!=null) return new Date(fixYear(m[2]), mon, 1);
   }
-  // all-numeric: DD-MM-YYYY / YYYY-MM-DD / DD/MM/YY
   if((m = s.match(/^(\d{1,4})[-\/.](\d{1,2})[-\/.](\d{1,4})$/))){
     const a=+m[1], b=+m[2], c=+m[3];
     if(m[1].length===4) return new Date(a, b-1, c);
@@ -233,7 +267,6 @@ function toDate(val){
   return isNaN(t) ? null : new Date(t);
 }
 
-/* Find real column matching candidates */
 function findKey(header, candidates){
   const H = header.map(h=>[norm(h), h]);
   for(const c of candidates){ const n=norm(c); const hit=H.find(([k])=>k===n); if(hit) return hit[1]; }
@@ -241,7 +274,6 @@ function findKey(header, candidates){
   return null;
 }
 
-/* Detect header row */
 function detectHeaderRow(rows, mustGroups){
   const limit = Math.min(rows.length, 20);
   for(let i=0;i<limit;i++){
@@ -255,7 +287,6 @@ function detectHeaderRow(rows, mustGroups){
   return 0;
 }
 
-/* Read workbook -> {header, objs} */
 function readWorkbook(buf, mustGroups){
   const wb = XLSX.read(buf, {type:'array', raw:true});
   const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -315,19 +346,18 @@ document.getElementById('clearBtn').addEventListener('click', ()=>{
   document.querySelectorAll('.badge').forEach(b=>{b.className='badge'; b.textContent='not loaded';});
   document.getElementById('warnings').innerHTML='';
   document.getElementById('meta').textContent='';
+  document.getElementById('printSubhead').textContent='';
+  document.getElementById('printIsd').innerHTML='';
+  document.getElementById('printFline').innerHTML='';
   document.getElementById('tablewrap').innerHTML='<div class="empty">No summary yet — upload your files to begin.</div>';
+  document.getElementById('tableActions').style.display='none';
   document.getElementById('exportBtn').disabled = true;
 });
 
 /* ============================================================
    Days-pending computation & bucket assignment
    ============================================================ */
-
-/** Determine how many days an application has been pending.
- *  Priority: explicit "Number of days pending" column -> compute from Application Date to today.
- *  Returns null when impossible. */
 function getDaysPending(obj, header){
-  // 1) Explicit column
   const pCol = findKey(header, ['Number of days pending','Days Pending','Pending Days','Days pending','No of days pending']);
   if(pCol){
     const v = obj[pCol];
@@ -336,7 +366,6 @@ function getDaysPending(obj, header){
       if(!isNaN(n) && isFinite(n)) return Math.max(0, Math.round(n));
     }
   }
-  // 2) Compute from Application Date to today
   const aCol = findKey(header, ['Application Date','ApplicationDate','App Date','Date']);
   if(aCol){
     const d = toDate(obj[aCol]);
@@ -350,10 +379,9 @@ function getDaysPending(obj, header){
   return null;
 }
 
-/** Return the bucket key for a day count. */
 function bucketKey(days){
   for(const b of BUCKETS) if(days >= b.min && days <= b.max) return b.key;
-  return BUCKETS[BUCKETS.length-1].key; // fallback
+  return BUCKETS[BUCKETS.length-1].key;
 }
 
 /* ============================================================
@@ -374,10 +402,10 @@ function buildVillageMap(){
 
 function aggregate(){
   const villageToUser = buildVillageMap();
-  const counts = {};                  // cat -> user -> bucketKey -> count
+  const counts = {};
   const users = new Set();
-  const unmatched = new Map();        // origVillage -> {count, cats:Set}
-  const unreadable = {};              // cat -> count of rows with unreadable days
+  const unmatched = new Map();
+  const unreadable = {};
   let totalRows = 0, matchedRows = 0;
 
   CATS.forEach(c=>{ counts[c.key]={}; unreadable[c.key]=0; });
@@ -415,68 +443,82 @@ function aggregate(){
    ============================================================ */
 let lastMatrix = null;
 
+/** Build an HTML table for a subset of CATS (e.g. just ISD or just F-Line). */
+function buildTableHtml(A, cnt, catTotal, colSum, catColSum, cats){
+  let h1 = '<tr><th class="corner" rowspan="2">User name</th>';
+  let h2 = '<tr>';
+  cats.forEach(c=>{
+    const span = BUCKETS.length + 1;
+    h1 += '<th class="'+c.g+'" colspan="'+span+'">'+esc(c.label)+'</th>';
+    BUCKETS.forEach(b=> h2 += '<th class="'+c.s+'">'+esc(b.label)+'</th>');
+    h2 += '<th class="'+c.t+'">Total</th>';
+  });
+  h1 += '</tr>';
+  h2 += '</tr>';
+
+  let body = '';
+  const num = (v,cls)=> '<td class="num '+(cls||'')+(v===0?' zero':'')+'">'+v+'</td>';
+  A.users.forEach(u=>{
+    let row = '<tr><td class="user">'+esc(u)+'</td>';
+    cats.forEach(c=>{
+      BUCKETS.forEach(b=> row += num(cnt(c.key,u,b.key)));
+      row += num(catTotal(c.key,u), c.t);
+    });
+    row += '</tr>';
+    body += row;
+  });
+
+  let total = '<tr class="totalRow"><td class="user">Total</td>';
+  cats.forEach(c=>{
+    BUCKETS.forEach(b=> total += '<td class="num">'+colSum(c.key,b.key)+'</td>');
+    total += '<td class="num '+c.t+'">'+catColSum(c.key)+'</td>';
+  });
+  total += '</tr>';
+
+  return '<table><thead>'+h1+h2+'</thead><tbody>'+body+total+'</tbody></table>';
+}
+
 function render(){
   const A = aggregate();
   renderWarnings(A);
 
   const wrap = document.getElementById('tablewrap');
+  const actions = document.getElementById('tableActions');
+
   if(A.users.length===0){
     wrap.innerHTML = '<div class="empty">No matched applications to summarise.'+
       (loadedCount()<5 ? ' ('+loadedCount()+' of 5 files loaded.)' : ' Check the unmatched-village warning above.')+'</div>';
     document.getElementById('meta').textContent='';
+    document.getElementById('printSubhead').textContent='';
+    document.getElementById('printIsd').innerHTML='';
+    document.getElementById('printFline').innerHTML='';
+    actions.style.display='none';
     document.getElementById('exportBtn').disabled = true;
     return;
   }
 
+  actions.style.display='flex';
+
   const cnt = (cat,u,bk) => (A.counts[cat][u] && A.counts[cat][u][bk]) || 0;
   const catTotal = (cat,u) => BUCKETS.reduce((s,b)=>s+cnt(cat,u,b.key), 0);
-  const grand = (u) => CATS.reduce((s,c)=>s+catTotal(c.key,u), 0);
-
-  /* ---- header ---- */
-  let h1 = '<tr><th class="corner" rowspan="2">User name</th>';
-  let h2 = '<tr>';
-  CATS.forEach(c=>{
-    const span = BUCKETS.length + 1; // 4 buckets + total
-    h1 += '<th class="'+c.g+'" colspan="'+span+'">'+esc(c.label)+'</th>';
-    BUCKETS.forEach(b=> h2 += '<th class="'+c.s+'">'+esc(b.label)+'</th>');
-    h2 += '<th class="'+c.t+'">Total</th>';
-  });
-  h1 += '<th class="g-grand" rowspan="2">Grand Total</th></tr>';
-  h2 += '</tr>';
-
-  /* ---- body ---- */
-  let body = '';
-  const num = (v,cls)=> '<td class="num '+(cls||'')+(v===0?' zero':'')+'">'+v+'</td>';
-  A.users.forEach(u=>{
-    let row = '<tr><td class="user">'+esc(u)+'</td>';
-    CATS.forEach(c=>{
-      BUCKETS.forEach(b=> row += num(cnt(c.key,u,b.key)));
-      row += num(catTotal(c.key,u), c.t);
-    });
-    row += num(grand(u), 't-grand');
-    row += '</tr>';
-    body += row;
-  });
-
-  /* ---- total row ---- */
   const colSum = (cat,bk) => A.users.reduce((s,u)=>s+cnt(cat,u,bk), 0);
   const catColSum = (cat) => BUCKETS.reduce((s,b)=>s+colSum(cat,b.key), 0);
-  const grandColSum = () => CATS.reduce((s,c)=>s+catColSum(c.key), 0);
 
-  let total = '<tr class="totalRow"><td class="user">Total</td>';
-  CATS.forEach(c=>{
-    BUCKETS.forEach(b=> total += '<td class="num">'+colSum(c.key,b.key)+'</td>');
-    total += '<td class="num '+c.t+'">'+catColSum(c.key)+'</td>';
-  });
-  total += '<td class="num t-grand">'+grandColSum()+'</td></tr>';
+  // Screen-view table — all 4 cats in one table
+  wrap.innerHTML = buildTableHtml(A, cnt, catTotal, colSum, catColSum, CATS);
 
-  wrap.innerHTML = '<table><thead>'+h1+h2+'</thead><tbody>'+body+total+'</tbody></table>';
+  // Print-only — ISD table (top), F Line table (bottom), each with own user column
+  document.getElementById('printIsd').innerHTML = buildTableHtml(A, cnt, catTotal, colSum, catColSum, CATS_ISD);
+  document.getElementById('printFline').innerHTML = buildTableHtml(A, cnt, catTotal, colSum, catColSum, CATS_FLINE);
+
+  document.getElementById('printSubhead').textContent =
+    A.users.length+' user(s) · '+A.matchedRows+' matched applications';
 
   document.getElementById('meta').innerHTML =
     '<b>'+A.users.length+'</b> users · <b>'+A.matchedRows+'</b> matched applications of '+A.totalRows+
     ' rows read across the four detail files.';
 
-  buildMatrix(A, cnt, catTotal, grand, colSum, catColSum, grandColSum);
+  buildMatrix(A, cnt, catTotal, colSum, catColSum);
   document.getElementById('exportBtn').disabled = false;
 }
 
@@ -517,33 +559,109 @@ function renderWarnings(A){
   box.innerHTML = html;
 }
 
-/* Flat matrix for Excel export */
-function buildMatrix(A, cnt, catTotal, grand, colSum, catColSum, grandColSum){
+/* Excel export matrix (no Grand Total) */
+function buildMatrix(A, cnt, catTotal, colSum, catColSum){
   const header = ['User name'];
   CATS.forEach(c=>{
     BUCKETS.forEach(b=> header.push(c.label+' · '+b.label));
     header.push(c.label+' · Total');
   });
-  header.push('Grand Total');
   const rows = [header];
   A.users.forEach(u=>{
     const r = [u];
     CATS.forEach(c=>{ BUCKETS.forEach(b=> r.push(cnt(c.key,u,b.key))); r.push(catTotal(c.key,u)); });
-    r.push(grand(u));
     rows.push(r);
   });
   const tr = ['Total'];
   CATS.forEach(c=>{ BUCKETS.forEach(b=> tr.push(colSum(c.key,b.key))); tr.push(catColSum(c.key)); });
-  tr.push(grandColSum());
   rows.push(tr);
   lastMatrix = rows;
 }
 
 /* ============================================================
-   Blank templates — dates in DD-MM-YYYY format.
-   F-Line templates include Number of days pending (used directly).
-   ISD templates have no pending-days column — the app computes
-   pending days from Application Date to today's date.
+   Print — table only, 2in top/bottom margins
+   ============================================================ */
+document.getElementById('printBtn').addEventListener('click', ()=>{
+  window.print();
+});
+
+/* ============================================================
+   Export table to image using html2canvas
+   Captures the print layout — ISD table on top, F Line below.
+   ============================================================ */
+document.getElementById('imageBtn').addEventListener('click', async ()=>{
+  const printContent = document.getElementById('printContent');
+  const isdTable = document.querySelector('#printIsd table');
+  if(!isdTable) return;
+
+  // Build a temporary container matching the print layout
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'background:#fff; padding:40px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;';
+
+  // Title
+  const title = document.createElement('h2');
+  title.style.cssText = 'font-size:16px; margin:0 0 4px; text-align:center';
+  title.textContent = 'Village Applications — Pending Days Summary';
+  tmp.appendChild(title);
+
+  const sub = document.getElementById('printSubhead');
+  if(sub && sub.textContent){
+    const p = document.createElement('p');
+    p.style.cssText = 'font-size:12px; margin:0 0 16px; text-align:center; color:#555';
+    p.textContent = sub.textContent;
+    tmp.appendChild(p);
+  }
+
+  // ISD section
+  const isdH = document.createElement('h3');
+  isdH.style.cssText = 'font-size:13px; margin:0 0 8px';
+  isdH.textContent = 'ISD (Rural) & ISD (Natham)';
+  tmp.appendChild(isdH);
+
+  const isdTableClone = isdTable.cloneNode(true);
+  isdTableClone.style.cssText = 'border-collapse:separate; border-spacing:0; font-size:10px; width:100%';
+  tmp.appendChild(isdTableClone);
+
+  // spacer
+  const sp = document.createElement('div');
+  sp.style.cssText = 'height:24px';
+  tmp.appendChild(sp);
+
+  // F Line section
+  const flineTable = document.querySelector('#printFline table');
+  if(flineTable){
+    const flineH = document.createElement('h3');
+    flineH.style.cssText = 'font-size:13px; margin:0 0 8px';
+    flineH.textContent = 'F Line (Rural) & F Line (Natham)';
+    tmp.appendChild(flineH);
+
+    const flineTableClone = flineTable.cloneNode(true);
+    flineTableClone.style.cssText = 'border-collapse:separate; border-spacing:0; font-size:10px; width:100%';
+    tmp.appendChild(flineTableClone);
+  }
+
+  document.body.appendChild(tmp);
+
+  try{
+    const canvas = await html2canvas(tmp, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      logging: false,
+      useCORS: true,
+    });
+    const link = document.createElement('a');
+    link.download = 'village_pending_days.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }catch(err){
+    alert('Failed to export image: ' + err.message);
+  }finally{
+    document.body.removeChild(tmp);
+  }
+});
+
+/* ============================================================
+   Blank templates
    ============================================================ */
 const TEMPLATES = {
   village: { sheet:'Village Details', file:'template_village_details.xlsx', rows:[
