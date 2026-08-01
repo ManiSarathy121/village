@@ -352,17 +352,20 @@
   .miss li.have{border-color:color-mix(in srgb,var(--ok) 45%,transparent); background:var(--ok-soft); color:var(--ok)}
   @media print{
     .rep{max-height:none!important; overflow:visible!important; border:none!important}
-    table.rep-t{font-size:8px!important; min-width:0!important}
-    table.rep-t th, table.rep-t td{padding:2px 4px!important; border:1px solid #9aa0aa!important; color:#111827!important}
+    table.rep-t{font-size:13px!important; min-width:0!important; width:100%!important}
+    table.rep-t th, table.rep-t td{padding:6px 6px!important; border:1px solid #9aa0aa!important; color:#111827!important}
+    table.rep-t td.nm, table.rep-t td.sn{font-size:13px!important}
+    table.rep-t tr.grp td{font-size:12px!important}
+    table.rep-t tr.grand td, table.rep-t tr.subtotal td{font-size:13.5px!important}
     table.rep-t thead th{position:static!important; background:#dfe3e8!important}
     table.rep-t tr.sub{display:none}
     #isdCard{page-break-after:always}
     body.print-isd-only .card:not(#isdCard){display:none!important}
     body.print-isd-only #isdCard{page-break-after:auto}
     #isdPrintVao{display:block!important; page-break-before:always}
-    #isdPrintVao h3{font-size:10px!important; margin:0 0 4px!important}
-    #isdPrintVao table{font-size:7.5px!important; width:100%!important; border-collapse:separate; border-spacing:0}
-    #isdPrintVao th, #isdPrintVao td{padding:2px 4px!important; border:1px solid #9aa0aa!important; color:#111827!important; text-align:center; white-space:nowrap}
+    #isdPrintVao h3{font-size:14px!important; margin:0 0 6px!important}
+    #isdPrintVao table{font-size:11.5px!important; width:100%!important; border-collapse:separate; border-spacing:0}
+    #isdPrintVao th, #isdPrintVao td{padding:5px 5px!important; border:1px solid #9aa0aa!important; color:#111827!important; text-align:center; white-space:nowrap}
     #isdPrintVao th{background:#dfe3e8!important; font-weight:700}
     #isdPrintVao td.nm{text-align:left; font-weight:600}
     #isdPrintVao tr.grand td{background:#c8ccd4!important; font-weight:800}
@@ -381,15 +384,15 @@
     .card{border:none; box-shadow:none; padding:0; margin:0; background:#fff}
     .print-wrap{margin-bottom:14px}
     .print-wrap:last-child{margin-bottom:0}
-    table{font-size:7.5px!important; width:100%!important; border-collapse:separate; border-spacing:0}
-    th,td{padding:2px 5px!important; color:#111!important}
+    table{font-size:13px!important; width:100%!important; border-collapse:separate; border-spacing:0}
+    th,td{padding:6px 6px!important; color:#111!important}
     th.corner,td.user{position:static!important; text-align:left; background:#fff!important}
     thead th{position:static!important; top:auto!important}
     .print-header{padding:0; margin-bottom:8px}
-    .print-header .logo, #isdPrintHeader .logo{width:32px!important; height:32px!important; display:block; margin:0 auto 3px}
-    .print-header h2{font-size:12px!important; margin:0 0 1px!important}
-    .print-header .subtitle{font-size:8px!important; margin:0 0 3px!important}
-    h3{font-size:8.5px!important; margin:0 0 4px!important}
+    .print-header .logo, #isdPrintHeader .logo{width:38px!important; height:38px!important; display:block; margin:0 auto 4px}
+    .print-header h2{font-size:19px!important; margin:0 0 2px!important}
+    .print-header .subtitle, #isdPrintSub, #printSubhead{font-size:11px!important; margin:0 0 6px!important}
+    h3{font-size:14px!important; margin:0 0 6px!important}
     @page{margin:0.35in 0.3in; size:A4 landscape}
     .no-page-break{page-break-inside:avoid; break-inside:avoid}
   }
@@ -610,8 +613,8 @@
 
     <div class="actions no-print" id="tableActions" style="display:none; margin-top:12px">
       <button class="primary" id="printBtn">&#128424; Print</button>
-      <button class="ghost" id="pdfBtn">&#128196; Export PDF</button>
-      <button class="ghost" id="imageBtn">&#128247; Export image</button>
+      <button class="ghost" id="pdfBtn">&#128196; Export PDF (all pages)</button>
+      <button class="ghost" id="imageBtn">&#128247; Export image (all pages)</button>
       <button class="ghost" id="expandAllBtn">&#8942; Expand all users</button>
     </div>
   </div>
@@ -2500,72 +2503,169 @@ document.addEventListener('keydown', e=>{
    ============================================================ */
 document.getElementById('printBtn').addEventListener('click', ()=> window.print());
 
-function buildExportContainer(){
-  const tmp = document.createElement('div');
-  tmp.style.cssText = 'background:#fff; color:#111827; padding:18px 24px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; width:1120px';
+/* One rendered page: A4 landscape proportions, big readable type.
+   PAGE_W is the pixel width the canvas is rendered at; every font size below
+   is chosen relative to it, so the text lands at ~10-11pt on the printed page. */
+const PAGE_W = 1040;
+const PDF_CSS = {
+  table: 'border-collapse:separate; border-spacing:0; font-size:15px; width:100%; table-layout:auto',
+  cell:  'color:#111827; border:1px solid #9aa0aa; padding:7px 6px; text-align:center; white-space:nowrap',
+};
 
-  const header = document.createElement('div');
-  header.style.cssText = 'text-align:center; margin-bottom:12px';
-  header.innerHTML = '<img style="width:32px; height:32px; display:block; margin:0 auto 5px" src="' + TN_LOGO_DATA + '" alt="TN Govt Emblem"/>' +
-    '<h2 style="font-size:15px; margin:0 0 2px">Nemili ISD &amp; F Line (Pending Applications Overview)</h2>';
-  const sub = document.getElementById('printSubhead');
-  if(sub && sub.textContent) header.innerHTML += '<p style="font-size:10px; margin:0 0 6px; color:#555">'+esc(sub.textContent)+'</p>';
-  tmp.appendChild(header);
-
-  const section = (title, sel, gap)=>{
-    const h = document.createElement('h3');
-    h.style.cssText = 'font-size:11px; margin:'+(gap?'12px 0 5px':'0 0 5px');
-    h.textContent = title;
-    tmp.appendChild(h);
-    const t = document.querySelector(sel);
-    if(t){
-      const clone = t.cloneNode(true);
-      clone.style.cssText = 'border-collapse:separate; border-spacing:0; font-size:9px; width:100%';
-      clone.querySelectorAll('td,th').forEach(c=>{ c.style.color='#111827'; c.style.border='1px solid #c9ccd3'; c.style.padding='2px 5px'; });
-      clone.querySelectorAll('td.user,th.corner').forEach(c=>{ c.style.position='static'; c.style.background='#fff'; c.style.textAlign='left'; });
-      clone.querySelectorAll('thead th').forEach(c=>{ c.style.position='static'; });
-      tmp.appendChild(clone);
-    }
-  };
-  section('ISD (Rural) & ISD (Natham)', '#printIsd table', false);
-  section('F Line (Rural) & F Line (Natham)', '#printFline table', true);
-  return tmp;
+function pdfPage(){
+  const p = document.createElement('div');
+  p.className = 'pdf-page';
+  p.style.cssText = 'background:#fff; color:#111827; padding:26px 30px; box-sizing:border-box; ' +
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; width:' + PAGE_W + 'px';
+  return p;
 }
 
-async function snapshot(){
-  const tmp = buildExportContainer();
-  document.body.appendChild(tmp);
+function pdfHeader(page, title, subtitle){
+  const h = document.createElement('div');
+  h.style.cssText = 'text-align:center; margin-bottom:16px';
+  h.innerHTML = '<img style="width:52px; height:52px; display:block; margin:0 auto 7px" src="' + TN_LOGO_DATA + '" alt="TN Govt Emblem"/>' +
+    '<h2 style="font-size:25px; font-weight:700; margin:0 0 3px">' + esc(title) + '</h2>' +
+    (subtitle ? '<p style="font-size:13px; margin:0; color:#555">' + esc(subtitle) + '</p>' : '');
+  page.appendChild(h);
+}
+
+function pdfTable(page, title, tableEl, opts){
+  if(!tableEl) return false;
+  const o = opts || {};
+  if(title){
+    const h = document.createElement('h3');
+    h.style.cssText = 'font-size:17px; font-weight:700; margin:' + (o.gap ? '20px 0 8px' : '0 0 8px');
+    h.textContent = title;
+    page.appendChild(h);
+  }
+  const clone = tableEl.cloneNode(true);
+  clone.querySelectorAll('tr.sub').forEach(r => r.remove());
+  clone.style.cssText = PDF_CSS.table + (o.fontSize ? '; font-size:' + o.fontSize + 'px' : '');
+  clone.querySelectorAll('td,th').forEach(c=>{
+    const bg = getComputedStyle(c).backgroundColor;
+    c.style.cssText += ';' + PDF_CSS.cell;
+    if(bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') c.style.background = bg;
+    if(o.fontSize) c.style.fontSize = o.fontSize + 'px';
+  });
+  clone.querySelectorAll('td.user,th.corner,td.nm,td.sn,th[style*="left"]').forEach(c=>{
+    c.style.position = 'static'; c.style.textAlign = 'left';
+  });
+  clone.querySelectorAll('thead th').forEach(c=>{ c.style.position = 'static'; });
+  clone.querySelectorAll('.chev').forEach(c=> c.remove());
+  page.appendChild(clone);
+  return true;
+}
+
+/* the three printed pages, as separate rendered blocks */
+function buildExportPages(){
+  const pages = [];
+
+  /* page 1 — ISD Rural report */
+  const isdTable = document.querySelector('#isdRep table.rep-t');
+  if(isdTable){
+    const p = pdfPage();
+    pdfHeader(p, 'Nemili Taluk ISD Pending Details', document.getElementById('isdPrintSub').textContent);
+    pdfTable(p, null, isdTable, {fontSize:15});
+    pages.push(p);
+  }
+
+  /* page 2 — VAO details, village wise */
+  const vaoTable = document.querySelector('#isdPrintVao table');
+  if(vaoTable){
+    const p = pdfPage();
+    pdfHeader(p, 'VAO Details — village wise', document.getElementById('isdPrintSub').textContent);
+    pdfTable(p, null, vaoTable, {fontSize:13});
+    pages.push(p);
+  }
+
+  /* page 3 — combined ISD Natham / F Line */
+  const cIsd = document.querySelector('#printIsd table');
+  const cFl  = document.querySelector('#printFline table');
+  if(cIsd || cFl){
+    const p = pdfPage();
+    const sub = document.getElementById('printSubhead');
+    pdfHeader(p, 'Nemili ISD & F Line (Pending Applications Overview)', sub ? sub.textContent : '');
+    pdfTable(p, CATS_ISD.map(c=>c.label).join(' & '), cIsd, {fontSize:15});
+    pdfTable(p, CATS_FLINE.map(c=>c.label).join(' & '), cFl, {fontSize:14, gap:true});
+    pages.push(p);
+  }
+  return pages;
+}
+
+async function renderPages(){
+  const pages = buildExportPages();
+  if(!pages.length) return [];
+  const host = document.createElement('div');
+  host.style.cssText = 'position:absolute; left:-10000px; top:0';
+  pages.forEach(p => host.appendChild(p));
+  document.body.appendChild(host);
   try{
-    return await html2canvas(tmp, {backgroundColor:'#ffffff', scale:2, logging:false, useCORS:true});
+    const out = [];
+    for(const p of pages){
+      out.push(await html2canvas(p, {backgroundColor:'#ffffff', scale:2, logging:false, useCORS:true}));
+    }
+    return out;
   }finally{
-    document.body.removeChild(tmp);
+    document.body.removeChild(host);
   }
 }
 
+function anythingToExport(){
+  return !!(document.querySelector('#isdRep table.rep-t') || document.querySelector('#printIsd table'));
+}
+
 document.getElementById('imageBtn').addEventListener('click', async ()=>{
-  if(!document.querySelector('#printIsd table')){ toast('Nothing to export', 'Load your files first.', 'warn'); return; }
+  if(!anythingToExport()){ toast('Nothing to export', 'Load your files first.', 'warn'); return; }
   try{
-    const canvas = await snapshot();
+    const canvases = await renderPages();
+    const w = Math.max(...canvases.map(c=>c.width));
+    const h = canvases.reduce((s,c)=>s+c.height, 0) + 24*(canvases.length-1);
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const ctx = out.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,w,h);
+    let y = 0;
+    canvases.forEach(c=>{ ctx.drawImage(c, 0, y); y += c.height + 24; });
     const link = document.createElement('a');
     link.download = 'Nemili_Pending_Applications.png';
-    link.href = canvas.toDataURL('image/png');
+    link.href = out.toDataURL('image/png');
     link.click();
-    toast('Image exported', 'Nemili_Pending_Applications.png', 'ok');
+    toast('Image exported', canvases.length + ' page(s) stacked into one PNG', 'ok');
   }catch(err){ toast('Image export failed', err.message, 'err'); }
 });
 
 document.getElementById('pdfBtn').addEventListener('click', async ()=>{
-  if(!document.querySelector('#printIsd table')){ toast('Nothing to export', 'Load your files first.', 'warn'); return; }
+  if(!anythingToExport()){ toast('Nothing to export', 'Load your files first.', 'warn'); return; }
   try{
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('l', 'mm', 'a4');
-    const canvas = await snapshot();
-    const imgData = canvas.toDataURL('image/png');
-    const margin = 10, imgW = 297 - 2*margin;
-    const imgH = (canvas.height / canvas.width) * imgW;
-    pdf.addImage(imgData, 'PNG', margin, 12, imgW, imgH);
+    const PW = 297, PH = 210, M = 7;
+    const boxW = PW - 2*M, boxH = PH - 2*M;
+    const canvases = await renderPages();
+    let first = true;
+
+    canvases.forEach(canvas=>{
+      /* scale so the page block fills the sheet width, then slice it down the
+         page height so nothing is cut off mid-table */
+      const scale = boxW / canvas.width;                 // mm per canvas px
+      const sliceH = Math.floor(boxH / scale);           // canvas px that fit on one sheet
+      let sy = 0;
+      while(sy < canvas.height){
+        const sh = Math.min(sliceH, canvas.height - sy);
+        const part = document.createElement('canvas');
+        part.width = canvas.width; part.height = sh;
+        const c = part.getContext('2d');
+        c.fillStyle = '#ffffff'; c.fillRect(0,0,part.width,sh);
+        c.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
+        if(!first) pdf.addPage();
+        first = false;
+        pdf.addImage(part.toDataURL('image/png'), 'PNG', M, M, boxW, sh * scale);
+        sy += sh;
+      }
+    });
+
     pdf.save('Nemili_Pending_Applications.pdf');
-    toast('PDF exported', 'Nemili_Pending_Applications.pdf', 'ok');
+    toast('PDF exported', pdf.getNumberOfPages() + ' landscape page(s)', 'ok');
   }catch(err){ toast('PDF export failed', err.message, 'err'); }
 });
 
