@@ -550,7 +550,7 @@
 
     <div class="actions no-print" id="isdActions" style="display:none; margin-top:12px">
       <button class="ghost" id="isdExpandBtn">&#8942; Expand all</button>
-      <button class="ghost" id="isdXlsBtn">&#128202; Export this table to Excel</button>
+      <button class="ghost" id="isdXlsBtn">&#128202; Export all pages to Excel</button>
       <button class="ghost" id="isdPrintBtn">&#128424; Print this table</button>
     </div>
   </div>
@@ -1686,13 +1686,16 @@ async function exportIsdStyled(){
   vt.getCell(1).value = 'VAO Total';
   vt.getCell(1).alignment = {horizontal:'center', vertical:'middle'};
 
+  /* ---------- sheet 3: the combined ISD Natham / F Line table (print page 3) ---------- */
+  buildCombinedSheet(wb, 'ISD Natham & F Line');
+
   await downloadWorkbook(wb, 'nemili_isd_rural_pending_details.xlsx');
 }
 
 /* ---------- combined dashboard, styled ---------- */
-async function exportCombinedStyled(){
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Pending Summary', {properties:{defaultRowHeight:16}});
+function buildCombinedSheet(wb, sheetName){
+  if(!A || !A.users.length) return null;
+  const ws = wb.addWorksheet(sheetName || 'Pending Summary', {properties:{defaultRowHeight:16}});
   const CATFILL = {isdNatham:'FFF6DCE7', flineRural:'FFD8ECC8', flineNatham:'FFDED8F0'};
   const CATHEAD = {isdNatham:'FFDB7FA6', flineRural:'FF7FB85C', flineNatham:'FF8E7CC3'};
   const NC = 1 + CATS.length * (BUCKETS.length + 1) + 1;
@@ -1767,6 +1770,12 @@ async function exportCombinedStyled(){
     cell.font = {bold:true, size:10}; cell.alignment = {horizontal: i===1 ? 'left' : 'center'};
   });
 
+  return ws;
+}
+
+async function exportCombinedStyled(){
+  const wb = new ExcelJS.Workbook();
+  if(!buildCombinedSheet(wb)){ toast('Nothing to export', 'No matched applications in the combined table.', 'warn'); return; }
   await downloadWorkbook(wb, 'nemili_pending_applications_summary.xlsx');
 }
 
@@ -2289,7 +2298,8 @@ document.getElementById('isdXlsBtn').addEventListener('click', async ()=>{
   try{
     if(window.ExcelJS){
       await exportIsdStyled();
-      toast('Excel exported', 'nemili_isd_rural_pending_details.xlsx — colours and merges included', 'ok');
+      const n = (A && A.users.length) ? 3 : 2;
+      toast('Excel exported', 'nemili_isd_rural_pending_details.xlsx — ' + n + ' sheets, same as the printed pages', 'ok');
     }else{
       exportPlain(isdLastMatrix, 'ISD Rural Pending', 'nemili_isd_rural_pending_details.xlsx');
       toast('Excel exported (plain)', 'Styling library unavailable — values only.', 'warn');
