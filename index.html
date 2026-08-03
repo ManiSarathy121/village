@@ -367,6 +367,9 @@
     #isdPrintVao h3{font-size:15px!important; margin:0 0 7px!important}
     .tabcap{font-size:15px!important; margin:0 0 7px!important; color:#111827!important}
     #printContent .print-header{display:none!important}
+    #printIsdWrap h3, #printFlineWrap h3{display:none!important}
+    #printFlineWrap{page-break-before:always}
+    #printIsdWrap{margin-bottom:0!important}
     #isdPrintVao table{font-size:11.5px!important; width:100%!important; border-collapse:separate; border-spacing:0}
     #isdPrintVao th, #isdPrintVao td{padding:5px 5px!important; border:1px solid #9aa0aa!important; color:#111827!important; text-align:center; white-space:nowrap}
     #isdPrintVao th{background:#dfe3e8!important; font-weight:700}
@@ -1693,19 +1696,34 @@ async function exportIsdStyled(){
   vt.getCell(1).value = 'VAO Total';
   vt.getCell(1).alignment = {horizontal:'center', vertical:'middle'};
 
-  /* ---------- sheet 3: the combined ISD Natham / F Line table (print page 3) ---------- */
-  buildCombinedSheet(wb, 'ISD Natham & F Line');
+  /* ---------- sheets 3 & 4: the combined tables, one per printed page ---------- */
+  buildCombinedSheet(wb, sheetNameFor(CATS_ISD), CATS_ISD);
+  buildCombinedSheet(wb, sheetNameFor(CATS_FLINE), CATS_FLINE);
 
   await downloadWorkbook(wb, 'nemili_isd_rural_pending_details.xlsx');
 }
 
 /* ---------- combined dashboard, styled ---------- */
-function buildCombinedSheet(wb, sheetName){
+/* Excel caps sheet names at 31 chars — fold "F Line (Rural)" + "F Line (Natham)"
+   into "F Line (Rural & Natham)" rather than truncating mid-word */
+function sheetNameFor(cats){
+  if(cats.length === 1) return cats[0].label.slice(0,31);
+  const base = cats[0].label.split(' (')[0];
+  if(cats.every(c => c.label.split(' (')[0] === base)){
+    const parts = cats.map(c => (c.label.match(/\(([^)]*)\)/) || [])[1]).filter(Boolean);
+    const n = base + ' (' + parts.join(' & ') + ')';
+    if(n.length <= 31) return n;
+  }
+  return cats.map(c => c.label).join(' & ').slice(0,31);
+}
+
+function buildCombinedSheet(wb, sheetName, catList){
   if(!A || !A.users.length) return null;
+  const CS = catList || CATS;
   const ws = wb.addWorksheet(sheetName || 'Pending Summary', {properties:{defaultRowHeight:16}});
   const CATFILL = {isdNatham:'FFF6DCE7', flineRural:'FFD8ECC8', flineNatham:'FFDED8F0'};
   const CATHEAD = {isdNatham:'FFDB7FA6', flineRural:'FF7FB85C', flineNatham:'FF8E7CC3'};
-  const NC = 1 + CATS.length * (BUCKETS.length + 1) + 1;
+  const NC = 1 + CS.length * (BUCKETS.length + 1) + 1;
 
   ws.mergeCells(1,1,1,NC);
   const t = ws.getCell(1,1);
@@ -1719,7 +1737,7 @@ function buildCombinedSheet(wb, sheetName){
 
   ws.mergeCells(3,1,4,1); ws.getCell(3,1).value = 'User name';
   let c = 2;
-  CATS.forEach(cat=>{
+  CS.forEach(cat=>{
     const span = BUCKETS.length + 1;
     ws.mergeCells(3, c, 3, c+span-1);
     const h = ws.getCell(3, c); h.value = cat.label;
@@ -1750,7 +1768,7 @@ function buildCombinedSheet(wb, sheetName){
   const catTotal = (cat,u) => BUCKETS.reduce((s,b)=>s+cnt(cat,u,b.key), 0);
   const line = (u)=>{
     const vals = [u]; let g = 0;
-    CATS.forEach(cat=>{ BUCKETS.forEach(b=>vals.push(cnt(cat.key,u,b.key))); const ct = catTotal(cat.key,u); vals.push(ct); g += ct; });
+    CS.forEach(cat=>{ BUCKETS.forEach(b=>vals.push(cnt(cat.key,u,b.key))); const ct = catTotal(cat.key,u); vals.push(ct); g += ct; });
     vals.push(g);
     return vals;
   };
@@ -1762,11 +1780,11 @@ function buildCombinedSheet(wb, sheetName){
       cell.font = {size:10};
     });
     let cc = 2;
-    CATS.forEach(cat=>{ cc += BUCKETS.length; row.getCell(cc).fill = xFill(CATFILL[cat.key]); cc++; });
+    CS.forEach(cat=>{ cc += BUCKETS.length; row.getCell(cc).fill = xFill(CATFILL[cat.key]); cc++; });
     row.getCell(NC).fill = xFill(XC.totCol);
   });
   const totals = ['Total']; let gg = 0;
-  CATS.forEach(cat=>{
+  CS.forEach(cat=>{
     BUCKETS.forEach(b=> totals.push(A.users.reduce((s,u)=>s+cnt(cat.key,u,b.key),0)));
     const ct = A.users.reduce((s,u)=>s+catTotal(cat.key,u),0); totals.push(ct); gg += ct;
   });
@@ -2305,7 +2323,7 @@ document.getElementById('isdXlsBtn').addEventListener('click', async ()=>{
   try{
     if(window.ExcelJS){
       await exportIsdStyled();
-      const n = (A && A.users.length) ? 3 : 2;
+      const n = (A && A.users.length) ? 4 : 2;
       toast('Excel exported', 'nemili_isd_rural_pending_details.xlsx — ' + n + ' sheets, same as the printed pages', 'ok');
     }else{
       exportPlain(isdLastMatrix, 'ISD Rural Pending', 'nemili_isd_rural_pending_details.xlsx');
@@ -2511,6 +2529,9 @@ document.getElementById('printBtn').addEventListener('click', ()=> window.print(
    PAGE_W is the pixel width the canvas is rendered at; every font size below
    is chosen relative to it, so the text lands at ~10-11pt on the printed page. */
 const PAGE_W = 1040;
+const PDF_M  = 7;                                             /* sheet margin, mm */
+const PDF_BOX_W = 297 - 2*PDF_M, PDF_BOX_H = 210 - 2*PDF_M;   /* printable area, mm */
+const PAGE_H = Math.round(PAGE_W * PDF_BOX_H / PDF_BOX_W);    /* fills an A4 landscape sheet exactly */
 const PDF_CSS = {
   table: 'border-collapse:separate; border-spacing:0; font-size:15px; width:100%; table-layout:auto',
   cell:  'color:#111827; border:1px solid #9aa0aa; padding:7px 6px; text-align:center; white-space:nowrap',
@@ -2520,7 +2541,8 @@ function pdfPage(){
   const p = document.createElement('div');
   p.className = 'pdf-page';
   p.style.cssText = 'background:#fff; color:#111827; padding:26px 30px; box-sizing:border-box; ' +
-    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; width:' + PAGE_W + 'px';
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; ' +
+    'width:' + PAGE_W + 'px; min-height:' + PAGE_H + 'px; display:flex; flex-direction:column';
   return p;
 }
 
@@ -2556,7 +2578,12 @@ function pdfTable(page, title, tableEl, opts){
   });
   clone.querySelectorAll('thead th').forEach(c=>{ c.style.position = 'static'; });
   clone.querySelectorAll('.chev').forEach(c=> c.remove());
-  page.appendChild(clone);
+  /* stretch the table down the sheet so the page is filled, not floating at the top */
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'flex:1 1 auto; display:flex; flex-direction:column; min-height:0';
+  clone.style.height = '100%';
+  wrap.appendChild(clone);
+  page.appendChild(wrap);
   return true;
 }
 
@@ -2585,10 +2612,16 @@ function buildExportPages(){
   /* page 3 — combined ISD Natham / F Line */
   const cIsd = document.querySelector('#printIsd table');
   const cFl  = document.querySelector('#printFline table');
-  if(cIsd || cFl){
+  if(cIsd){
     const p = pdfPage();
-    pdfTable(p, CATS_ISD.map(c=>c.label).join(' & '), cIsd, {fontSize:15});
-    pdfTable(p, CATS_FLINE.map(c=>c.label).join(' & '), cFl, {fontSize:14, gap:true});
+    pdfTable(p, null, cIsd, {fontSize:16});
+    pages.push(p);
+  }
+
+  /* page 4 — F Line */
+  if(cFl){
+    const p = pdfPage();
+    pdfTable(p, null, cFl, {fontSize:15});
     pages.push(p);
   }
   return pages;
@@ -2641,16 +2674,33 @@ document.getElementById('pdfBtn').addEventListener('click', async ()=>{
   try{
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('l', 'mm', 'a4');
-    const PW = 297, PH = 210, M = 7;
-    const boxW = PW - 2*M, boxH = PH - 2*M;
+    const M = PDF_M;
+    const boxW = PDF_BOX_W, boxH = PDF_BOX_H;
     const canvases = await renderPages();
     let first = true;
 
     canvases.forEach(canvas=>{
-      /* scale so the page block fills the sheet width, then slice it down the
-         page height so nothing is cut off mid-table */
-      const scale = boxW / canvas.width;                 // mm per canvas px
-      const sliceH = Math.floor(boxH / scale);           // canvas px that fit on one sheet
+      const scale = boxW / canvas.width;                 /* mm per canvas px at full sheet width */
+      const fullH = canvas.height * scale;
+
+      if(fullH <= boxH + 0.5){
+        /* fits on one sheet — fill the width, centre what is left vertically */
+        if(!first) pdf.addPage();
+        first = false;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', M, M + (boxH - fullH)/2, boxW, fullH);
+        return;
+      }
+      if(fullH <= boxH * 1.35){
+        /* a little too tall — shrink to the sheet height rather than spill a sliver */
+        const sc = boxH / canvas.height;
+        const w = canvas.width * sc;
+        if(!first) pdf.addPage();
+        first = false;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', M + (boxW - w)/2, M, w, boxH);
+        return;
+      }
+      /* genuinely long — slice it down the page so nothing is cut off */
+      const sliceH = Math.floor(boxH / scale);
       let sy = 0;
       while(sy < canvas.height){
         const sh = Math.min(sliceH, canvas.height - sy);
