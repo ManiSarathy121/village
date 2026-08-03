@@ -345,6 +345,7 @@
   td.pc-r{background:#ff6b6b!important; color:#4a0d0d!important; font-weight:700}
   td.pc-n{color:var(--muted)}
   .repnote{font-size:12px; color:var(--muted); margin:0 0 12px; line-height:1.6}
+  .tabcap{font-size:14px; font-weight:700; margin:0 0 8px; color:var(--ink); letter-spacing:-.01em}
   .miss{border:1px dashed var(--line-2); border-radius:var(--r-sm); padding:22px; text-align:center; color:var(--muted); font-size:13px; background:var(--surface-2)}
   .miss b{color:var(--ink)}
   .miss ul{list-style:none; padding:0; margin:10px 0 0; display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
@@ -363,7 +364,9 @@
     body.print-isd-only .card:not(#isdCard){display:none!important}
     body.print-isd-only #isdCard{page-break-after:auto}
     #isdPrintVao{display:block!important; page-break-before:always}
-    #isdPrintVao h3{font-size:14px!important; margin:0 0 6px!important}
+    #isdPrintVao h3{font-size:15px!important; margin:0 0 7px!important}
+    .tabcap{font-size:15px!important; margin:0 0 7px!important; color:#111827!important}
+    #printContent .print-header{display:none!important}
     #isdPrintVao table{font-size:11.5px!important; width:100%!important; border-collapse:separate; border-spacing:0}
     #isdPrintVao th, #isdPrintVao td{padding:5px 5px!important; border:1px solid #9aa0aa!important; color:#111827!important; text-align:center; white-space:nowrap}
     #isdPrintVao th{background:#dfe3e8!important; font-weight:700}
@@ -535,6 +538,7 @@
       <h2 style="font-size:16px; margin:0 0 2px">Nemili Taluk ISD Pending Details</h2>
       <p style="font-size:10px; margin:0 0 6px; color:#555" id="isdPrintSub"></p>
     </div>
+    <h3 class="tabcap" id="isdTableCap">ISD (Rural)</h3>
     <div class="rep" id="isdRep">
       <div class="miss">
         <b>ISD Rural report not ready.</b><br>Load Village Details, VAO Details and at least one OPT Pending export.
@@ -1639,7 +1643,7 @@ async function exportIsdStyled(){
 
   /* ---------- sheet 1: main report ---------- */
   const ws = wb.addWorksheet('ISD Pending Details', {properties:{defaultRowHeight:16}});
-  const {NC} = xIsdHeader(ws, 'Nemili Taluk ISD Pending Details',
+  const {NC} = xIsdHeader(ws, 'Nemili Taluk ISD Pending Details — ISD (Rural)',
     'As on ' + new Date().toLocaleDateString('en-GB') + ' · surveyor ' + sTotal.pending +
     ' · VAO ' + vTotal.pending + ' · taluk total ' + gTotal.pending, ['S.No','Name']);
 
@@ -1672,7 +1676,7 @@ async function exportIsdStyled(){
 
   /* ---------- sheet 2: VAO village wise ---------- */
   const wv = wb.addWorksheet('VAO Details', {properties:{defaultRowHeight:16}});
-  xIsdHeader(wv, 'VAO Details — village wise',
+  xIsdHeader(wv, 'ISD (Rural) — VAO Details, village wise',
     'As on ' + new Date().toLocaleDateString('en-GB') + ' · VAO total ' + vTotal.pending,
     ['S.No','VAO Name','Village']);
   let n = 0;
@@ -2253,7 +2257,7 @@ function renderVaoPrintPage(vTotal){
   });
   if(!n){ box.innerHTML = ''; return; }
   box.innerHTML =
-    '<h3>VAO Details \u2014 village wise (' + n + ' village' + (n!==1?'s':'') + ')</h3>' +
+    '<h3>ISD (Rural) \u2014 VAO Details, village wise (' + n + ' village' + (n!==1?'s':'') + ')</h3>' +
     '<table><thead>'+head+'</thead><tbody>'+body+
     '<tr class="grand"><td colspan="3" style="text-align:center">VAO Total</td>'+cell(vTotal)+'</tr>'+
     '</tbody></table>';
@@ -2520,10 +2524,10 @@ function pdfPage(){
   return p;
 }
 
-function pdfHeader(page, title, subtitle){
+function pdfHeader(page, title, subtitle, withLogo){
   const h = document.createElement('div');
   h.style.cssText = 'text-align:center; margin-bottom:16px';
-  h.innerHTML = '<img style="width:52px; height:52px; display:block; margin:0 auto 7px" src="' + TN_LOGO_DATA + '" alt="TN Govt Emblem"/>' +
+  h.innerHTML = (withLogo ? '<img style="width:52px; height:52px; display:block; margin:0 auto 7px" src="' + TN_LOGO_DATA + '" alt="TN Govt Emblem"/>' : '') +
     '<h2 style="font-size:25px; font-weight:700; margin:0 0 3px">' + esc(title) + '</h2>' +
     (subtitle ? '<p style="font-size:13px; margin:0; color:#555">' + esc(subtitle) + '</p>' : '');
   page.appendChild(h);
@@ -2564,8 +2568,8 @@ function buildExportPages(){
   const isdTable = document.querySelector('#isdRep table.rep-t');
   if(isdTable){
     const p = pdfPage();
-    pdfHeader(p, 'Nemili Taluk ISD Pending Details', document.getElementById('isdPrintSub').textContent);
-    pdfTable(p, null, isdTable, {fontSize:15});
+    pdfHeader(p, 'Nemili Taluk ISD Pending Details', document.getElementById('isdPrintSub').textContent, true);
+    pdfTable(p, 'ISD (Rural)', isdTable, {fontSize:15});
     pages.push(p);
   }
 
@@ -2573,7 +2577,7 @@ function buildExportPages(){
   const vaoTable = document.querySelector('#isdPrintVao table');
   if(vaoTable){
     const p = pdfPage();
-    pdfHeader(p, 'VAO Details — village wise', document.getElementById('isdPrintSub').textContent);
+    pdfHeader(p, 'ISD (Rural) — VAO Details, village wise', document.getElementById('isdPrintSub').textContent, false);
     pdfTable(p, null, vaoTable, {fontSize:13});
     pages.push(p);
   }
@@ -2583,8 +2587,6 @@ function buildExportPages(){
   const cFl  = document.querySelector('#printFline table');
   if(cIsd || cFl){
     const p = pdfPage();
-    const sub = document.getElementById('printSubhead');
-    pdfHeader(p, 'Nemili ISD & F Line (Pending Applications Overview)', sub ? sub.textContent : '');
     pdfTable(p, CATS_ISD.map(c=>c.label).join(' & '), cIsd, {fontSize:15});
     pdfTable(p, CATS_FLINE.map(c=>c.label).join(' & '), cFl, {fontSize:14, gap:true});
     pages.push(p);
