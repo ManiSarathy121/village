@@ -645,12 +645,26 @@ const CATS = [
 const CATS_ISD   = CATS.slice(0,1);
 const CATS_FLINE = CATS.slice(1,3);
 
-const BUCKETS = [
+const B_SHORT = [
   {key:'d20',  label:'<20 days',   min:0,  max:19, color:'#4caf50'},
   {key:'d25',  label:'20-25 days', min:20, max:24, color:'#ffc107'},
   {key:'d30',  label:'25-30 days', min:25, max:29, color:'#ff9800'},
-  {key:'d30p', label:'30+ days',   min:30, max:Infinity, color:'#e53935'},
 ];
+/* ISD keeps a single 30+ column; F Line splits it into 30-60 / 60-90 / 90+ */
+const B_30P   = {key:'d30p',  label:'30+ days',   min:30, max:Infinity, color:'#e53935'};
+const B_3060  = {key:'d3060', label:'30-60 days', min:30, max:59,       color:'#e53935'};
+const B_6090  = {key:'d6090', label:'60-90 days', min:60, max:89,       color:'#b71c1c'};
+const B_90P   = {key:'d90p',  label:'90+ days',   min:90, max:Infinity, color:'#7f0000'};
+
+const BUCKETS       = B_SHORT.concat([B_30P]);                  /* ISD + the OPT day ranges */
+const FLINE_BUCKETS = B_SHORT.concat([B_3060, B_6090, B_90P]);  /* F Line Rural & Natham */
+const ALL_BUCKETS   = B_SHORT.concat([B_30P, B_3060, B_6090, B_90P]);  /* union, for chips & chart */
+const OVER30_KEYS   = ['d30p','d3060','d6090','d90p'];
+
+const isFline = key => String(key).indexOf('fline') === 0;
+const bucketsFor = key => isFline(key) ? FLINE_BUCKETS : BUCKETS;
+/* total data columns across all categories (bucket columns + a Total each) */
+const TOTAL_COLS = () => 1 + CATS.reduce((s,c)=> s + bucketsFor(c.key).length + 1, 0);
 
 const FILE_NAMES = {village:'Village Details', vaoDetails:'VAO Details',
   isdRuralPdf:'ISD Rural Application Status PDF',
@@ -946,9 +960,10 @@ function getDaysPending(obj, header){
   return null;
 }
 
-function bucketKey(days){
-  for(const b of BUCKETS) if(days >= b.min && days <= b.max) return b.key;
-  return BUCKETS[BUCKETS.length-1].key;
+function bucketKey(days, list){
+  const L = list || BUCKETS;
+  for(const b of L) if(days >= b.min && days <= b.max) return b.key;
+  return L[L.length-1].key;
 }
 
 /* ============================================================
@@ -1007,7 +1022,7 @@ function aggregate(){
       if(days === null){ unreadable[cat.key]++; continue; }
       matchedRows++;
       users.add(user);
-      const bk = bucketKey(days);
+      const bk = bucketKey(days, bucketsFor(cat.key));
       (counts[cat.key][user] = counts[cat.key][user] || {});
       counts[cat.key][user][bk] = (counts[cat.key][user][bk]||0) + 1;
 
@@ -1049,9 +1064,9 @@ function buildTableHtml(A, cnt, catTotal, colSum, catColSum, cats){
   let h1 = '<tr><th class="corner" rowspan="2">User name</th>';
   let h2 = '<tr>';
   cats.forEach(c=>{
-    const span = BUCKETS.length + 1;
-    h1 += '<th class="'+c.g+'" colspan="'+span+'">'+esc(c.label)+'</th>';
-    BUCKETS.forEach(b=> h2 += '<th class="'+c.s+'">'+esc(b.label)+'</th>');
+    const BK = bucketsFor(c.key);
+    h1 += '<th class="'+c.g+'" colspan="'+(BK.length+1)+'">'+esc(c.label)+'</th>';
+    BK.forEach(b=> h2 += '<th class="'+c.s+'">'+esc(b.label)+'</th>');
     h2 += '<th class="'+c.t+'">Total</th>';
   });
   h1 += '</tr>'; h2 += '</tr>';
@@ -1061,7 +1076,7 @@ function buildTableHtml(A, cnt, catTotal, colSum, catColSum, cats){
   A.users.forEach(u=>{
     let row = '<tr><td class="user">'+esc(u)+'</td>';
     cats.forEach(c=>{
-      BUCKETS.forEach(b=> row += num(cnt(c.key,u,b.key)));
+      bucketsFor(c.key).forEach(b=> row += num(cnt(c.key,u,b.key)));
       row += num(catTotal(c.key,u), c.t);
     });
     row += '</tr>';
@@ -1070,7 +1085,7 @@ function buildTableHtml(A, cnt, catTotal, colSum, catColSum, cats){
 
   let total = '<tr class="totalRow"><td class="user">Total</td>';
   cats.forEach(c=>{
-    BUCKETS.forEach(b=> total += '<td class="num">'+colSum(c.key,b.key)+'</td>');
+    bucketsFor(c.key).forEach(b=> total += '<td class="num">'+colSum(c.key,b.key)+'</td>');
     total += '<td class="num '+c.t+'">'+catColSum(c.key)+'</td>';
   });
   total += '</tr>';
@@ -1098,7 +1113,7 @@ function buildInteractiveTable(){
   document.getElementById('controls').style.display='flex';
 
   const cnt = (cat,u,bk) => (A.counts[cat][u] && A.counts[cat][u][bk]) || 0;
-  const catTotal = (cat,u) => BUCKETS.reduce((s,b)=>s+cnt(cat,u,b.key), 0);
+  const catTotal = (cat,u) => bucketsFor(cat).reduce((s,b)=>s+cnt(cat,u,b.key), 0);
   const grand = (u) => CATS.reduce((s,c)=>s+catTotal(c.key,u), 0);
 
   /* ---- filtering ---- */
@@ -1116,6 +1131,7 @@ function buildInteractiveTable(){
   if(activeBucket){
     users = users.filter(u => CATS.some(c => cnt(c.key,u,activeBucket) > 0));
   }
+  /* column count across the mixed bucket sets */
   if(activeCat){
     users = users.filter(u => catTotal(activeCat,u) > 0);
   }
@@ -1145,8 +1161,9 @@ function buildInteractiveTable(){
   let h1 = '<tr><th class="corner '+sortCls('user')+'" data-sort="user" rowspan="2">User name <span class="arr">'+arrow('user')+'</span></th>';
   let h2 = '<tr>';
   CATS.forEach(c=>{
-    h1 += '<th class="'+c.g+' catcol" colspan="'+(BUCKETS.length+1)+'" data-cat="'+c.key+'" title="Click to show only users with '+esc(c.label)+' applications" style="cursor:pointer'+(activeCat===c.key?'; box-shadow:inset 0 -3px 0 var(--accent)':'')+'">'+esc(c.label)+'</th>';
-    BUCKETS.forEach(b=>{
+    const BK = bucketsFor(c.key);
+    h1 += '<th class="'+c.g+' catcol" colspan="'+(BK.length+1)+'" data-cat="'+c.key+'" title="Click to show only users with '+esc(c.label)+' applications" style="cursor:pointer'+(activeCat===c.key?'; box-shadow:inset 0 -3px 0 var(--accent)':'')+'">'+esc(c.label)+'</th>';
+    BK.forEach(b=>{
       const k = c.key+'_'+b.key;
       h2 += '<th class="'+c.s+' '+sortCls(k)+'" data-sort="'+k+'">'+esc(b.label)+' <span class="arr">'+arrow(k)+'</span></th>';
     });
@@ -1165,7 +1182,7 @@ function buildInteractiveTable(){
     let row = '<tr class="userrow'+(isOpen?' open':'')+'" data-user="'+esc(u)+'">'+
       '<td class="user"><span class="chev">&#9654;</span>'+esc(u)+'</td>';
     CATS.forEach(c=>{
-      BUCKETS.forEach(b=>{
+      bucketsFor(c.key).forEach(b=>{
         const v = cnt(c.key,u,b.key);
         const hl = (activeBucket===b.key) ? ' cell-hl' : '';
         const tt = villageTooltip(c.key, u, b.key, v);
@@ -1177,19 +1194,19 @@ function buildInteractiveTable(){
     row += '</tr>';
 
     if(isOpen){
-      row += '<tr class="detail-row"><td colspan="'+(CATS.length*(BUCKETS.length+1)+2)+'"><div class="dr">'+detailTable(u)+'</div></td></tr>';
+      row += '<tr class="detail-row"><td colspan="'+(TOTAL_COLS()+1)+'"><div class="dr">'+detailTable(u)+'</div></td></tr>';
     }
     body += row;
   });
 
   /* ---- totals over the VISIBLE users ---- */
   const colSum = (cat,bk) => users.reduce((s,u)=>s+cnt(cat,u,bk), 0);
-  const catColSum = (cat) => BUCKETS.reduce((s,b)=>s+colSum(cat,b.key), 0);
+  const catColSum = (cat) => bucketsFor(cat).reduce((s,b)=>s+colSum(cat,b.key), 0);
   const grandColSum = () => CATS.reduce((s,c)=>s+catColSum(c.key), 0);
 
   let total = '<tr class="totalRow"><td class="user">Total</td>';
   CATS.forEach(c=>{
-    BUCKETS.forEach(b=> total += '<td class="num">'+colSum(c.key,b.key)+'</td>');
+    bucketsFor(c.key).forEach(b=> total += '<td class="num">'+colSum(c.key,b.key)+'</td>');
     total += '<td class="num '+c.t+'">'+catColSum(c.key)+'</td>';
   });
   total += '<td class="num t-grand">'+grandColSum()+'</td></tr>';
@@ -1202,7 +1219,7 @@ function buildInteractiveTable(){
   bits.push(A.matchedRows+' counted of '+A.totalRows+' rows read');
   if(A.statusSkipped) bits.push('<b>'+A.statusSkipped+'</b> row'+(A.statusSkipped!==1?'s':'')+' skipped — not pending');
   if(q) bits.push('search: "'+esc(searchTerm)+'"');
-  if(activeBucket) bits.push('bucket: '+esc(BUCKETS.find(b=>b.key===activeBucket).label));
+  if(activeBucket){ const ab = ALL_BUCKETS.find(b=>b.key===activeBucket); if(ab) bits.push('bucket: '+esc(ab.label)); }
   if(activeCat) bits.push('category: '+esc(CATS.find(c=>c.key===activeCat).label));
   document.getElementById('meta').innerHTML = bits.join(' &middot; ');
 
@@ -1218,21 +1235,21 @@ function detailTable(user){
     const v = (A.villages[c.key] && A.villages[c.key][user]) || {};
     Object.keys(v).forEach(vl=>{
       (vMap[vl] = vMap[vl] || {});
-      BUCKETS.forEach(b=>{ vMap[vl][c.key+'_'+b.key] = (vMap[vl][c.key+'_'+b.key]||0) + (v[vl][b.key]||0); });
+      bucketsFor(c.key).forEach(b=>{ vMap[vl][c.key+'_'+b.key] = (vMap[vl][c.key+'_'+b.key]||0) + (v[vl][b.key]||0); });
     });
   });
   const names = Object.keys(vMap).sort();
   if(names.length===0) return '<div class="empty" style="padding:14px">No village detail.</div>';
 
   let html = '<table><thead><tr><th style="text-align:left">Village</th>';
-  CATS.forEach(c=>{ BUCKETS.forEach(b=> html += '<th class="'+c.s+'">'+esc(c.label)+'<br>'+esc(b.label)+'</th>'); html += '<th class="'+c.t+'">Total</th>'; });
+  CATS.forEach(c=>{ bucketsFor(c.key).forEach(b=> html += '<th class="'+c.s+'">'+esc(c.label)+'<br>'+esc(b.label)+'</th>'); html += '<th class="'+c.t+'">Total</th>'; });
   html += '<th class="t-grand">All</th></tr></thead><tbody>';
   names.forEach(vl=>{
     let rowTotal = 0;
     let cells = '';
     CATS.forEach(c=>{
       let ct = 0;
-      BUCKETS.forEach(b=>{
+      bucketsFor(c.key).forEach(b=>{
         const v = vMap[vl][c.key+'_'+b.key] || 0; ct += v;
         cells += '<td class="num'+(v===0?' zero':'')+'">'+v+'</td>';
       });
@@ -1273,13 +1290,13 @@ function animateValue(el, to){
 function renderStats(){
   const box = document.getElementById('stats');
   const cnt = (cat,u,bk) => (A.counts[cat][u] && A.counts[cat][u][bk]) || 0;
-  const catTot = c => A.users.reduce((s,u)=>s+BUCKETS.reduce((y,b)=>y+cnt(c,u,b.key),0),0);
+  const catTot = c => A.users.reduce((s,u)=>s+bucketsFor(c).reduce((y,b)=>y+cnt(c,u,b.key),0),0);
   const bucketTot = b => A.users.reduce((s,u)=>s+CATS.reduce((x,c)=>x+cnt(c.key,u,b),0),0);
 
   const catTotals = CATS.map(c=>catTot(c.key));
-  const bucketTotals = BUCKETS.map(b=>bucketTot(b.key));
+  const bucketTotals = ALL_BUCKETS.map(b=>bucketTot(b.key));
   const grandTotal = catTotals.reduce((s,v)=>s+v,0);
-  const over30 = bucketTotals[3];
+  const over30 = OVER30_KEYS.reduce((s,k)=>s+bucketTot(k), 0);
   const pct = grandTotal ? Math.round(over30/grandTotal*100) : 0;
 
   let html = '';
@@ -1291,8 +1308,7 @@ function renderStats(){
     html += card('<div class="k"><span class="dot" style="background:'+c.color+'"></span>'+esc(c.label)+'</div><div class="v" data-count="'+catTotals[idx]+'">0</div><div class="s">'+(activeCat===c.key?'filtering — click to clear':'click to filter')+'</div>',
       'clickable'+(activeCat===c.key?' active':''), 'data-cat="'+c.key+'"');
   });
-  html += card('<div class="k"><span class="dot" style="background:'+BUCKETS[3].color+'"></span>Over 30 days</div><div class="v" data-count="'+over30+'">0</div><div class="s">'+pct+'% of pending · click to filter</div>',
-    'clickable'+(activeBucket==='d30p'?' active':''), 'data-bucket="d30p"');
+  html += card('<div class="k"><span class="dot" style="background:'+B_30P.color+'"></span>Over 30 days</div><div class="v" data-count="'+over30+'">0</div><div class="s">'+pct+'% of pending</div>');
   if(A.statusSkipped){
     html += card('<div class="k">Not pending</div><div class="v" data-count="'+A.statusSkipped+'">0</div><div class="s">rows excluded by status</div>');
   }
@@ -1312,7 +1328,7 @@ function renderChart(visibleUsers){
   const chart = document.getElementById('chart');
   const cnt = (cat,u,bk) => (A.counts[cat][u] && A.counts[cat][u][bk]) || 0;
   const inCat = c => !activeCat || c.key === activeCat;
-  const userTotal = u => CATS.filter(inCat).reduce((s,c)=>s+BUCKETS.reduce((y,b)=>y+cnt(c.key,u,b.key),0),0);
+  const userTotal = u => CATS.filter(inCat).reduce((s,c)=>s+bucketsFor(c.key).reduce((y,b)=>y+cnt(c.key,u,b.key),0),0);
   const shown = new Set(visibleUsers||A.users);
   const maxV = Math.max(1, ...A.users.map(userTotal));
 
@@ -1320,7 +1336,7 @@ function renderChart(visibleUsers){
   A.users.forEach(u=>{
     const total = userTotal(u);
     let bars = '';
-    BUCKETS.forEach(b=>{
+    ALL_BUCKETS.forEach(b=>{
       const real = CATS.filter(inCat).reduce((s,c)=>s+cnt(c.key,u,b.key),0);
       const h = Math.max(2, (real/maxV)*160);
       const dim = (activeBucket && activeBucket!==b.key) ? 'opacity:.28;' : '';
@@ -1352,7 +1368,7 @@ function renderChart(visibleUsers){
   });
 
   document.getElementById('bucketLegend').innerHTML =
-    BUCKETS.map(b=>'<span><i style="background:'+b.color+'"></i>'+esc(b.label)+'</span>').join('') +
+    ALL_BUCKETS.map(b=>'<span><i style="background:'+b.color+'"></i>'+esc(b.label)+'</span>').join('') +
     '<span style="margin-left:auto; opacity:.8">Click a bar to filter by bucket · click a name to filter the table</span>';
 }
 
@@ -1362,8 +1378,9 @@ function updateChips(){
   if(!A) return;
   const cnt = (cat,u,bk) => (A.counts[cat][u] && A.counts[cat][u][bk]) || 0;
   let html = '';
-  BUCKETS.forEach(b=>{
+  ALL_BUCKETS.forEach(b=>{
     const n = A.users.reduce((s,u)=>s+CATS.reduce((x,c)=>x+cnt(c.key,u,b.key),0),0);
+    if(!n && (b.key==='d30p' || OVER30_KEYS.indexOf(b.key)>=0)) return;   /* hide the split that this data doesn't use */
     html += '<div class="chip'+(activeBucket===b.key?' on':'')+'" data-bucket="'+b.key+'"><i style="background:'+b.color+'"></i>'+esc(b.label)+' <span class="n">'+n+'</span></div>';
   });
   if(activeBucket || activeCat || searchTerm) html += '<div class="chip" data-reset="1">&#10005; Clear filters</div>';
@@ -1395,9 +1412,9 @@ function render(){
 
   /* print/export tables — always all users, unfiltered */
   const cnt = (cat,u,bk) => (A.counts[cat][u] && A.counts[cat][u][bk]) || 0;
-  const catTotal = (cat,u) => BUCKETS.reduce((s,b)=>s+cnt(cat,u,b.key), 0);
+  const catTotal = (cat,u) => bucketsFor(cat).reduce((s,b)=>s+cnt(cat,u,b.key), 0);
   const colSum = (cat,bk) => A.users.reduce((s,u)=>s+cnt(cat,u,bk), 0);
-  const catColSum = (cat) => BUCKETS.reduce((s,b)=>s+colSum(cat,b.key), 0);
+  const catColSum = (cat) => bucketsFor(cat).reduce((s,b)=>s+colSum(cat,b.key), 0);
 
   document.getElementById('printIsd').innerHTML = buildTableHtml(A, cnt, catTotal, colSum, catColSum, CATS_ISD);
   document.getElementById('printFline').innerHTML = buildTableHtml(A, cnt, catTotal, colSum, catColSum, CATS_FLINE);
@@ -1486,19 +1503,19 @@ function renderWarnings(A){
 function buildMatrix(A, cnt, catTotal, colSum, catColSum){
   const header = ['User name'];
   CATS.forEach(c=>{
-    BUCKETS.forEach(b=> header.push(c.label+' · '+b.label));
+    bucketsFor(c.key).forEach(b=> header.push(c.label+' · '+b.label));
     header.push(c.label+' · Total');
   });
   header.push('Grand total');
   const rows = [header];
   A.users.forEach(u=>{
     const r = [u]; let g = 0;
-    CATS.forEach(c=>{ BUCKETS.forEach(b=> r.push(cnt(c.key,u,b.key))); const ct = catTotal(c.key,u); r.push(ct); g += ct; });
+    CATS.forEach(c=>{ bucketsFor(c.key).forEach(b=> r.push(cnt(c.key,u,b.key))); const ct = catTotal(c.key,u); r.push(ct); g += ct; });
     r.push(g);
     rows.push(r);
   });
   const tr = ['Total']; let gg = 0;
-  CATS.forEach(c=>{ BUCKETS.forEach(b=> tr.push(colSum(c.key,b.key))); const ct = catColSum(c.key); tr.push(ct); gg += ct; });
+  CATS.forEach(c=>{ bucketsFor(c.key).forEach(b=> tr.push(colSum(c.key,b.key))); const ct = catColSum(c.key); tr.push(ct); gg += ct; });
   tr.push(gg);
   rows.push(tr);
   lastMatrix = rows;
@@ -1727,7 +1744,7 @@ function buildCombinedSheet(wb, sheetName, catList){
   const ws = wb.addWorksheet(sheetName || 'Pending Summary', {properties:{defaultRowHeight:16}});
   const CATFILL = {isdNatham:'FFF6DCE7', flineRural:'FFD8ECC8', flineNatham:'FFDED8F0'};
   const CATHEAD = {isdNatham:'FFDB7FA6', flineRural:'FF7FB85C', flineNatham:'FF8E7CC3'};
-  const NC = 1 + CS.length * (BUCKETS.length + 1) + 1;
+  const NC = 1 + CS.reduce((t,c)=>t + bucketsFor(c.key).length + 1, 0) + 1;
 
   ws.mergeCells(1,1,1,NC);
   const t = ws.getCell(1,1);
@@ -1742,14 +1759,14 @@ function buildCombinedSheet(wb, sheetName, catList){
   ws.mergeCells(3,1,4,1); ws.getCell(3,1).value = 'User name';
   let c = 2;
   CS.forEach(cat=>{
-    const span = BUCKETS.length + 1;
+    const BK = bucketsFor(cat.key), span = BK.length + 1;
     ws.mergeCells(3, c, 3, c+span-1);
     const h = ws.getCell(3, c); h.value = cat.label;
     for(let i=0;i<span;i++) ws.getCell(3, c+i).fill = xFill(CATHEAD[cat.key]);
-    BUCKETS.forEach((b,i)=>{
+    BK.forEach((b,i)=>{
       const cell = ws.getCell(4, c+i); cell.value = b.label; cell.fill = xFill(CATFILL[cat.key]);
     });
-    const tc = ws.getCell(4, c+BUCKETS.length); tc.value = 'Total'; tc.fill = xFill(CATFILL[cat.key]);
+    const tc = ws.getCell(4, c+BK.length); tc.value = 'Total'; tc.fill = xFill(CATFILL[cat.key]);
     c += span;
   });
   ws.mergeCells(3, c, 4, c); ws.getCell(3, c).value = 'Grand total';
@@ -1769,10 +1786,10 @@ function buildCombinedSheet(wb, sheetName, catList){
   ws.pageSetup = {orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:0};
 
   const cnt = (cat,u,bk) => (A.counts[cat][u] && A.counts[cat][u][bk]) || 0;
-  const catTotal = (cat,u) => BUCKETS.reduce((s,b)=>s+cnt(cat,u,b.key), 0);
+  const catTotal = (cat,u) => bucketsFor(cat).reduce((s,b)=>s+cnt(cat,u,b.key), 0);
   const line = (u)=>{
     const vals = [u]; let g = 0;
-    CS.forEach(cat=>{ BUCKETS.forEach(b=>vals.push(cnt(cat.key,u,b.key))); const ct = catTotal(cat.key,u); vals.push(ct); g += ct; });
+    CS.forEach(cat=>{ bucketsFor(cat.key).forEach(b=>vals.push(cnt(cat.key,u,b.key))); const ct = catTotal(cat.key,u); vals.push(ct); g += ct; });
     vals.push(g);
     return vals;
   };
@@ -1784,12 +1801,12 @@ function buildCombinedSheet(wb, sheetName, catList){
       cell.font = {size:10};
     });
     let cc = 2;
-    CS.forEach(cat=>{ cc += BUCKETS.length; row.getCell(cc).fill = xFill(CATFILL[cat.key]); cc++; });
+    CS.forEach(cat=>{ cc += bucketsFor(cat.key).length; row.getCell(cc).fill = xFill(CATFILL[cat.key]); cc++; });
     row.getCell(NC).fill = xFill(XC.totCol);
   });
   const totals = ['Total']; let gg = 0;
   CS.forEach(cat=>{
-    BUCKETS.forEach(b=> totals.push(A.users.reduce((s,u)=>s+cnt(cat.key,u,b.key),0)));
+    bucketsFor(cat.key).forEach(b=> totals.push(A.users.reduce((s,u)=>s+cnt(cat.key,u,b.key),0)));
     const ct = A.users.reduce((s,u)=>s+catTotal(cat.key,u),0); totals.push(ct); gg += ct;
   });
   totals.push(gg);
