@@ -565,6 +565,7 @@
     <div class="actions no-print" id="isdActions" style="display:none; margin-top:12px">
       <button class="ghost" id="isdExpandBtn">&#8942; Expand all</button>
       <button class="ghost" id="isdXlsBtn">&#128202; Export all pages to Excel</button>
+      <button class="ghost" id="isdAllBtn">&#128203; Export all data (no disposal)</button>
       <button class="ghost" id="isdPrintBtn">&#128424; Print this table</button>
     </div>
   </div>
@@ -1721,6 +1722,9 @@ async function exportIsdStyled(){
   buildCombinedSheet(wb, sheetNameFor(CATS_ISD), CATS_ISD);
   buildCombinedSheet(wb, sheetNameFor(CATS_FLINE), CATS_FLINE);
 
+  /* ---------- everything side by side, pending only, no disposal ---------- */
+  buildAllDataSheet(wb);
+
   await downloadWorkbook(wb, 'nemili_isd_rural_pending_details.xlsx');
 }
 
@@ -1832,6 +1836,191 @@ function exportPlain(matrix, sheet, file){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheet);
   XLSX.writeFile(wb, file);
+}
+
+/* ============================================================
+   "All data" sheet — every category side by side, pending only,
+   no Today Disposal columns
+   ============================================================ */
+const ALL_COLS = [
+  {key:'isdRural',    label:'ISD (Rural)',     head:'FFB3A369', fill:'FFE7E0C2'},
+  {key:'isdNatham',   label:'ISD (Natham)',    head:'FFDB7FA6', fill:'FFF6DCE7'},
+  {key:'flineRural',  label:'F Line (Rural)',  head:'FF7FB85C', fill:'FFD8ECC8'},
+  {key:'flineNatham', label:'F Line (Natham)', head:'FF8E7CC3', fill:'FFDED8F0'},
+];
+
+function allDataCats(){
+  return ALL_COLS.filter(c => c.key === 'isdRural'
+    ? (R && R.ready)
+    : !!(A && A.counts && A.counts[c.key] && store[c.key]));
+}
+
+/* pending count for one name in one category/bucket */
+function allDataCount(catKey, name, bk, group){
+  if(catKey === 'isdRural'){
+    if(!R || !R.ready) return 0;
+    const rec = group === 'vao' ? R.vaos[name] : R.surveyors[name];
+    return (rec && rec.b[bk]) || 0;
+  }
+  if(group === 'vao') return 0;                 /* VAO rows exist only in ISD Rural */
+  return (A && A.counts[catKey] && A.counts[catKey][name] && A.counts[catKey][name][bk]) || 0;
+}
+
+function allDataReady(){
+  return allDataCats().length > 0 &&
+         ((R && R.ready) || (A && A.users && A.users.length));
+}
+
+function buildAllDataSheet(wb){
+  const cats = allDataCats();
+  if(!cats.length) return null;
+
+  const surveyors = Array.from(new Set(
+    ((R && R.ready) ? R.surveyorNames : []).concat((A && A.users) ? A.users : [])
+  )).sort((a,b)=>a.localeCompare(b));
+  const vaos = (R && R.ready) ? R.vaoNames : [];
+  if(!surveyors.length && !vaos.length) return null;
+
+  const ws = wb.addWorksheet('All Data (no disposal)', {properties:{defaultRowHeight:16}});
+  const NC = 2 + cats.reduce((t,c)=> t + bucketsFor(c.key).length + 1, 0) + 1;
+
+  ws.mergeCells(1,1,1,NC);
+  const t = ws.getCell(1,1);
+  t.value = 'Nemili Taluk — all pending applications by user & days pending';
+  t.font = {bold:true, size:14, color:{argb:XC.headInk}};
+  t.alignment = {horizontal:'center', vertical:'middle'};
+  ws.getRow(1).height = 24;
+
+  ws.mergeCells(2,1,2,NC);
+  const sb = ws.getCell(2,1);
+  sb.value = 'As on ' + new Date().toLocaleDateString('en-GB') + ' · pending rows only · disposal figures not included';
+  sb.font = {size:9, color:{argb:'FF6B7280'}};
+  sb.alignment = {horizontal:'center'};
+
+  /* header */
+  ws.mergeCells(3,1,4,1); ws.getCell(3,1).value = 'S.No';
+  ws.mergeCells(3,2,4,2); ws.getCell(3,2).value = 'Name';
+  let c = 3;
+  cats.forEach(cat=>{
+    const BK = bucketsFor(cat.key), span = BK.length + 1;
+    ws.mergeCells(3, c, 3, c+span-1);
+    ws.getCell(3, c).value = cat.label;
+    for(let i=0;i<span;i++) ws.getCell(3, c+i).fill = xFill(cat.head);
+    BK.forEach((b,i)=>{
+      const cell = ws.getCell(4, c+i);
+      cell.value = (cat.key === 'isdRural' && OPT_SLOTS[i]) ? OPT_SLOTS[i].label : b.label;
+      cell.fill = xFill(cat.fill);
+    });
+    const tc = ws.getCell(4, c+BK.length); tc.value = 'Total'; tc.fill = xFill(cat.fill);
+    c += span;
+  });
+  ws.mergeCells(3, c, 4, c); ws.getCell(3, c).value = 'Grand total';
+  [3,4].forEach(rn=>{
+    const row = ws.getRow(rn);
+    for(let i=1;i<=NC;i++){
+      const cell = row.getCell(i);
+      cell.border = XBORDER;
+      if(!cell.fill || cell.fill.type !== 'pattern') cell.fill = xFill(XC.head);
+      cell.font = {bold:true, size:10, color:{argb:XC.headInk}};
+      cell.alignment = {horizontal:'center', vertical:'middle', wrapText:true};
+    }
+    row.height = 18;
+  });
+  ws.columns.forEach((col,i)=> col.width = i === 0 ? 7 : (i === 1 ? 26 : 12));
+  ws.views = [{state:'frozen', xSplit:2, ySplit:4}];
+  ws.pageSetup = {orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:0};
+
+  /* one row of figures */
+  const lineFor = (name, group)=>{
+    const vals = []; let grand = 0;
+    cats.forEach(cat=>{
+      let ct = 0;
+      bucketsFor(cat.key).forEach(b=>{
+        const v = allDataCount(cat.key, name, b.key, group);
+        vals.push(v); ct += v;
+      });
+      vals.push(ct); grand += ct;
+    });
+    vals.push(grand);
+    return {vals, grand};
+  };
+  const sumFor = (names, group)=>{
+    const out = {vals:null, grand:0};
+    names.forEach(n=>{
+      const l = lineFor(n, group);
+      if(!out.vals) out.vals = l.vals.slice();
+      else l.vals.forEach((v,i)=> out.vals[i] += v);
+    });
+    if(!out.vals) out.vals = lineFor(' none', group).vals.map(()=>0);
+    out.grand = out.vals[out.vals.length-1];
+    return out;
+  };
+
+  const styleData = (row, opts)=>{
+    const o = opts || {};
+    for(let i=1;i<=NC;i++){
+      const cell = row.getCell(i);
+      cell.border = XBORDER;
+      cell.alignment = {horizontal: i<=2 ? 'left' : 'center', vertical:'middle'};
+      cell.font = {bold:!!o.bold, size:10, color:{argb:XC.headInk}};
+      if(o.fill) cell.fill = xFill(o.fill);
+    }
+    if(!o.fill){
+      let cc = 3;
+      cats.forEach(cat=>{ cc += bucketsFor(cat.key).length; row.getCell(cc).fill = xFill(cat.fill); cc++; });
+      row.getCell(NC).fill = xFill(XC.totCol);
+    }
+    row.height = o.bold ? 18 : 16;
+  };
+
+  const groupRow = (label)=>{
+    const row = xAddRow(ws, [label]);
+    ws.mergeCells(row.number, 1, row.number, NC);
+    styleData(row, {fill:XC.grp, bold:true});
+    return row;
+  };
+
+  /* --- surveyors --- */
+  if(surveyors.length){
+    groupRow('Surveyor');
+    surveyors.forEach((n,i)=> styleData(xAddRow(ws, [i+1, n].concat(lineFor(n, 'surveyor').vals))));
+    const st = sumFor(surveyors, 'surveyor');
+    const row = xAddRow(ws, ['', 'Total'].concat(st.vals));
+    ws.mergeCells(row.number, 1, row.number, 2);
+    row.getCell(1).value = 'Total';
+    styleData(row, {fill:XC.subtotal, bold:true});
+    row.getCell(1).alignment = {horizontal:'center', vertical:'middle'};
+  }
+
+  /* --- VAO (ISD Rural only) --- */
+  if(vaos.length){
+    groupRow('VAO — ISD (Rural)');
+    vaos.forEach((n,i)=> styleData(xAddRow(ws, [i+1, n].concat(lineFor(n, 'vao').vals))));
+    const vt = sumFor(vaos, 'vao');
+    const row = xAddRow(ws, ['', 'VAO Total'].concat(vt.vals));
+    ws.mergeCells(row.number, 1, row.number, 2);
+    row.getCell(1).value = 'VAO Total';
+    styleData(row, {fill:XC.vao, bold:true});
+    row.getCell(1).alignment = {horizontal:'center', vertical:'middle'};
+  }
+
+  /* --- taluk total --- */
+  const st = sumFor(surveyors, 'surveyor'), vt = sumFor(vaos, 'vao');
+  const gv = st.vals.map((v,i)=> v + vt.vals[i]);
+  const grow = xAddRow(ws, ['', 'Taluk Total'].concat(gv));
+  ws.mergeCells(grow.number, 1, grow.number, 2);
+  grow.getCell(1).value = 'Taluk Total';
+  styleData(grow, {fill:XC.grand, bold:true});
+  grow.getCell(1).alignment = {horizontal:'center', vertical:'middle'};
+
+  return ws;
+}
+
+async function exportAllDataStyled(){
+  const wb = new ExcelJS.Workbook();
+  if(!buildAllDataSheet(wb)) return false;
+  await downloadWorkbook(wb, 'nemili_all_pending_data.xlsx');
+  return true;
 }
 
 /* ============================================================
@@ -2352,6 +2541,16 @@ document.getElementById('isdXlsBtn').addEventListener('click', async ()=>{
     }
   }catch(err){ toast('Excel export failed', err.message, 'err'); }
 });
+document.getElementById('isdAllBtn').addEventListener('click', async ()=>{
+  if(!window.ExcelJS){ toast('Not available', 'The Excel styling library could not be loaded.', 'err'); return; }
+  if(!allDataReady()){ toast('Nothing to export', 'Load the ISD Rural files, or the ISD Natham / F Line files.', 'warn'); return; }
+  try{
+    const cats = allDataCats().map(c=>c.label).join(', ');
+    if(await exportAllDataStyled()) toast('Excel exported', 'nemili_all_pending_data.xlsx — ' + cats, 'ok');
+    else toast('Nothing to export', 'No pending applications found.', 'warn');
+  }catch(err){ toast('Excel export failed', err.message, 'err'); }
+});
+
 document.getElementById('isdPrintBtn').addEventListener('click', ()=>{
   document.body.classList.add('print-isd-only');
   window.print();
